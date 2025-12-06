@@ -1,0 +1,4 @@
+# Screenshots and temporary images
+assets/CleanShot_*.png
+assets/image-*.png
+*.DS_Store

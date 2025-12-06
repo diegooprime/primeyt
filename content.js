@@ -255,6 +255,26 @@
     }
   }
 
+  function formatDurationToMinutes(duration) {
+    if (!duration) return '';
+    
+    // Duration format: "4:03" (mm:ss) or "1:57:16" (h:mm:ss)
+    const parts = duration.split(':').map(p => parseInt(p, 10));
+    
+    let totalMinutes = 0;
+    if (parts.length === 2) {
+      // mm:ss
+      totalMinutes = parts[0];
+    } else if (parts.length === 3) {
+      // h:mm:ss
+      totalMinutes = parts[0] * 60 + parts[1];
+    } else {
+      return duration; // Unknown format, return as-is
+    }
+    
+    return `${totalMinutes} min`;
+  }
+
   function formatRelativeDate(timeStr) {
     if (!timeStr) return '';
     
@@ -353,17 +373,26 @@
         opacity: 1 !important;
       `;
       
-      const cleanTitle = video.title.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+      // Clean title and limit to 6 words
+      let cleanTitle = video.title.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+      const words = cleanTitle.split(' ');
+      if (words.length > 6) {
+        cleanTitle = words.slice(0, 6).join(' ') + '...';
+      }
+      
+      // Format duration to minutes and get upload date
+      const durationMin = formatDurationToMinutes(video.duration);
       const dateStr = formatRelativeDate(video.time);
       
       // Use inline styles to guarantee visibility
       row.innerHTML = `
         <div class="primeyt-video-left" style="flex:1;min-width:0;margin-right:24px;">
-          <div class="primeyt-video-title" style="color:#abb2bf;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(cleanTitle)}">${escapeHtml(cleanTitle)}</div>
+          <div class="primeyt-video-title" style="color:#abb2bf;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(video.title)}">${escapeHtml(cleanTitle)}</div>
         </div>
-        <div class="primeyt-video-right" style="display:flex;align-items:center;gap:24px;flex-shrink:0;">
-          <div class="primeyt-video-channel" style="color:#5c6370;font-size:13px;width:180px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(video.channel)}">${escapeHtml(video.channel)}</div>
-          <div class="primeyt-video-date" style="color:#4b5263;font-size:13px;width:60px;text-align:right;white-space:nowrap;">${escapeHtml(dateStr)}</div>
+        <div class="primeyt-video-right" style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
+          <div class="primeyt-video-channel" style="color:#5c6370;font-size:13px;width:140px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(video.channel)}">${escapeHtml(video.channel)}</div>
+          <div class="primeyt-video-duration" style="color:#61afef;font-size:12px;width:50px;text-align:right;white-space:nowrap;">${escapeHtml(durationMin)}</div>
+          <div class="primeyt-video-date" style="color:#4b5263;font-size:12px;width:55px;text-align:right;white-space:nowrap;">${escapeHtml(dateStr)}</div>
         </div>
       `;
       
@@ -518,7 +547,12 @@
     
     // Debug: log first 3 video titles and verify list content
     console.log(`[PrimeYT] SUCCESS: Built list with ${videos.length} videos`);
-    console.log('[PrimeYT] Sample videos:', videos.slice(0, 3));
+    console.log('[PrimeYT] Sample videos:', videos.slice(0, 3).map(v => ({
+      title: v.title?.substring(0, 30),
+      channel: v.channel || '(none)',
+      duration: v.duration || '(none)',
+      time: v.time || '(none)'
+    })));
     
     // Log the actual HTML of first row
     const firstRowCheck = innerContainer.querySelector('.primeyt-video-row');
@@ -773,37 +807,54 @@
         // If URL parsing fails, use as-is
       }
       
-      // Channel name - try multiple selectors
+      // Channel name - try multiple approaches
       let channel = '';
+      
+      // Approach 1: Look in #details or ytd-video-meta-block for channel info
+      const detailsArea = element.querySelector('#details, ytd-video-meta-block, #meta');
+      const searchArea = detailsArea || element;
+      
+      // Try to find channel name element
       const channelSelectors = [
-        '#channel-name #text a',
-        '#channel-name a',
-        '#channel-name #text',
-        'ytd-channel-name #text a',
-        'ytd-channel-name a',
+        'ytd-channel-name yt-formatted-string#text',
         'ytd-channel-name #text',
-        '#text.ytd-channel-name',
-        'ytd-channel-name yt-formatted-string',
-        'ytd-channel-name',
-        '#channel-name',
+        'ytd-channel-name a',
+        '#channel-name yt-formatted-string',
+        '#channel-name #text',
+        '#channel-name a',
+        '#byline-container #channel-name',
         '#byline a',
-        '.ytd-video-meta-block a'
+        'a.yt-simple-endpoint[href*="/channel/"]',
+        'a.yt-simple-endpoint[href*="/@"]',
+        'a[href*="/channel/"]',
+        'a[href*="/@"]'
       ];
       
       for (const selector of channelSelectors) {
-        const channelEl = element.querySelector(selector);
+        const channelEl = searchArea.querySelector(selector);
         if (channelEl) {
           // Try various ways to get the channel name
-          channel = channelEl.getAttribute('aria-label') ||
-                    channelEl.getAttribute('title') ||
-                    channelEl.textContent || 
-                    channelEl.innerText || '';
+          channel = channelEl.textContent || channelEl.innerText || '';
           channel = channel.trim();
-          // Skip if it looks like a duration or view count
-          if (channel && !channel.match(/^\d|views|ago|hour|minute|second/i)) {
+          // Skip if empty or looks like a duration/view count/number
+          if (channel && channel.length > 1 && !channel.match(/^[\d:,.\s]+$|views|ago|hour|minute|second|^\d+[KMB]?$/i)) {
             break;
           }
           channel = '';
+        }
+      }
+      
+      // Approach 2: If still no channel, look for any link to a channel page
+      if (!channel) {
+        const channelLinks = element.querySelectorAll('a[href*="/@"], a[href*="/channel/"]');
+        for (const link of channelLinks) {
+          // Skip if inside thumbnail
+          if (link.closest('#thumbnail') || link.closest('ytd-thumbnail')) continue;
+          const text = link.textContent || link.innerText || '';
+          if (text && text.length > 1 && !text.match(/^[\d:,.\s]+$|views|ago/i)) {
+            channel = text.trim();
+            break;
+          }
         }
       }
       
@@ -835,9 +886,79 @@
         }
       }
       
-      // Duration from thumbnail overlay (optional)
-      const durationEl = element.querySelector('ytd-thumbnail-overlay-time-status-renderer #text, span#text.ytd-thumbnail-overlay-time-status-renderer');
-      const duration = durationEl?.textContent?.trim() || '';
+      // Duration from thumbnail overlay
+      let duration = '';
+      const durationSelectors = [
+        'ytd-thumbnail-overlay-time-status-renderer #text',
+        'span#text.ytd-thumbnail-overlay-time-status-renderer',
+        'ytd-thumbnail-overlay-time-status-renderer span',
+        'ytd-thumbnail-overlay-time-status-renderer',
+        '#overlays #text',
+        '.ytd-thumbnail-overlay-time-status-renderer'
+      ];
+      
+      for (const selector of durationSelectors) {
+        const durationEl = element.querySelector(selector);
+        if (durationEl) {
+          const text = durationEl.textContent || durationEl.innerText || '';
+          // Duration looks like "4:03" or "1:57:16"
+          if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+            duration = text.trim();
+            break;
+          }
+        }
+      }
+      
+      // Fallback: try to find duration in aria-label of ANY link
+      if (!duration) {
+        const allLinks = element.querySelectorAll('a[aria-label]');
+        for (const link of allLinks) {
+          const ariaLabel = link.getAttribute('aria-label') || '';
+          
+          // aria-label might contain duration like "4 minutes, 3 seconds" or "1 hour, 57 minutes"
+          const durationMatch = ariaLabel.match(/(\d+)\s*minutes?,?\s*(\d+)?\s*seconds?/i);
+          if (durationMatch) {
+            const mins = parseInt(durationMatch[1], 10);
+            const secs = durationMatch[2] ? parseInt(durationMatch[2], 10) : 0;
+            duration = `${mins}:${secs.toString().padStart(2, '0')}`;
+            break;
+          }
+          
+          // Try hours format
+          const hourMatch = ariaLabel.match(/(\d+)\s*hours?,?\s*(\d+)?\s*minutes?/i);
+          if (hourMatch) {
+            const hrs = parseInt(hourMatch[1], 10);
+            const mins = hourMatch[2] ? parseInt(hourMatch[2], 10) : 0;
+            duration = `${hrs}:${mins.toString().padStart(2, '0')}:00`;
+            break;
+          }
+        }
+      }
+      
+      // Fallback: look for duration pattern in any text content
+      if (!duration) {
+        // Check all elements for "X minutes" pattern
+        const allText = element.textContent || '';
+        const textMatch = allText.match(/(\d+)\s*minutes?/i);
+        if (textMatch) {
+          const mins = parseInt(textMatch[1], 10);
+          if (mins > 0 && mins < 1000) { // Sanity check
+            duration = `${mins}:00`;
+          }
+        }
+      }
+      
+      // Last resort: try to find time badge anywhere
+      if (!duration) {
+        const badges = element.querySelectorAll('[class*="badge"], [class*="time"], [class*="duration"]');
+        for (const badge of badges) {
+          const text = badge.textContent || '';
+          if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+            duration = text.trim();
+            break;
+          }
+        }
+      }
       
       // Try to get data from YouTube's internal properties (Polymer components)
       if ((!title || !url) && element.__data) {
