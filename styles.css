@@ -526,12 +526,36 @@ ytd-channel-thumbnail,
 #overlays,
 ytd-thumbnail-overlay-time-status-renderer,
 ytd-thumbnail-overlay-resume-playback-renderer,
-ytd-thumbnail-overlay-now-playing-renderer {
+ytd-thumbnail-overlay-now-playing-renderer,
+.ytd-thumbnail-overlay-time-status-renderer,
+.ytd-thumbnail-overlay-resume-playback-renderer,
+.ytd-thumbnail-overlay-now-playing-renderer,
+ytd-thumbnail-overlay-hover-text-renderer,
+ytd-thumbnail-overlay-loading-preview-renderer,
+ytd-thumbnail-overlay-side-panel-renderer,
+ytd-thumbnail-overlay-toggle-button-renderer,
+ytd-thumbnail-overlay-image-renderer,
+ytd-thumbnail-overlay-badge-renderer,
+ytd-thumbnail-overlay-inline-unplayable-renderer,
+ytd-thumbnail-overlay-bottom-panel-renderer,
+ytd-thumbnail-overlay-endorsement-renderer {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
   position: absolute !important;
   left: -9999px !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Ensure video container doesn't keep aspect ratio space */
+ytd-rich-item-renderer,
+ytd-rich-grid-media,
+ytd-rich-item-renderer > #content,
+ytd-rich-grid-media > #content {
+  min-height: auto !important;
+  height: auto !important;
+  aspect-ratio: auto !important;
 }
 
 /* THE ACTUAL TEXT ROW */

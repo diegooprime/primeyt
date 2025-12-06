@@ -364,7 +364,7 @@
       if (!url || !url.includes('/watch')) return null;
       
       // Channel name - in ytd-channel-name
-      const channelEl = element.querySelector('ytd-channel-name #text, #channel-name #text a, ytd-channel-name a');
+      const channelEl = element.querySelector('ytd-channel-name #text, #channel-name #text a, ytd-channel-name a, .ytd-channel-name a');
       const channel = channelEl?.textContent?.trim() || '';
       
       // Metadata line contains views and time
@@ -379,12 +379,24 @@
         }
       }
       
-      // Duration from thumbnail overlay
+      // Fallback for time extraction if metadata-line fails (sometimes it's in a separate span)
+      if (!time) {
+          const timeSpans = element.querySelectorAll('#metadata-line span');
+          for (const span of timeSpans) {
+              if (span.textContent.match(/ago/i)) {
+                  time = span.textContent.trim();
+                  break;
+              }
+          }
+      }
+      
+      // Duration from thumbnail overlay (optional)
       const durationEl = element.querySelector('ytd-thumbnail-overlay-time-status-renderer #text, span#text.ytd-thumbnail-overlay-time-status-renderer');
       const duration = durationEl?.textContent?.trim() || '';
       
       return { title, url, channel, time, duration };
     } catch (e) {
+      console.error('[PrimeYT] Error extracting data', e);
       return null;
     }
   }
