@@ -1,0 +1,1270 @@
+/* PrimeYT - One Dark Theme for YouTube */
+
+:root {
+  --bg-primary: #282c34;
+  --bg-secondary: #21252b;
+  --bg-tertiary: #2c313a;
+  --bg-hover: #3e4451;
+  --text-primary: #abb2bf;
+  --text-secondary: #5c6370;
+  --text-muted: #4b5263;
+  --accent-blue: #61afef;
+  --accent-green: #98c379;
+  --accent-red: #e06c75;
+  --accent-yellow: #e5c07b;
+  --accent-purple: #c678dd;
+  --accent-cyan: #56b6c2;
+  --border-color: #3e4451;
+  --focus-ring: #61afef;
+}
+
+/* ========================================
+   GLOBAL RESETS & BASE STYLES
+   ======================================== */
+
+html,
+body,
+ytd-app,
+#content,
+#page-manager,
+#page-manager.ytd-app,
+ytd-app[is-watch-page],
+ytd-app:not([is-watch-page]) {
+  background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* Force background on root elements */
+:root,
+:host {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Override YouTube's background colors */
+ytd-browse,
+ytd-watch-flexy,
+ytd-search {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Kill any top spacing */
+html, body {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: none !important;
+}
+
+ytd-app {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  --ytd-toolbar-height: 0px !important;
+  --ytd-masthead-height: 0px !important;
+}
+
+/* Target specific YouTube layout elements */
+#contentContainer,
+.ytd-app {
+  background-color: var(--bg-primary) !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+
+/* ========================================
+   HIDE LEFT SIDEBAR / GUIDE
+   ======================================== */
+
+/* Main guide drawer */
+ytd-guide-renderer,
+ytd-mini-guide-renderer,
+#guide,
+#guide-button,
+ytd-guide-section-renderer,
+tp-yt-app-drawer {
+  display: none !important;
+}
+
+/* Guide open state - remove margin */
+ytd-app[guide-persistent-and-visible] #content.ytd-app {
+  margin-left: 0 !important;
+}
+
+ytd-app:not([guide-persistent-and-visible]) #content.ytd-app {
+  margin-left: 0 !important;
+}
+
+/* Masthead start (hamburger + logo area) */
+#start.ytd-masthead {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE ENTIRE MASTHEAD (TOP BAR)
+   ======================================== */
+
+/* Hide the entire top bar */
+ytd-masthead,
+#masthead,
+#masthead-container,
+#container.ytd-masthead {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+}
+
+/* Remove the space reserved for masthead */
+ytd-app {
+  --ytd-masthead-height: 0px !important;
+  --ytd-toolbar-height: 0px !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+#page-manager {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+#page-manager.ytd-app {
+  margin-top: 0 !important;
+}
+
+/* Fix any content pushed down by masthead */
+ytd-browse,
+ytd-watch-flexy,
+ytd-search {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Remove masthead spacer */
+#masthead-positioner,
+#masthead-positioner-height-offset {
+  display: none !important;
+  height: 0 !important;
+}
+
+/* Force all fixed/sticky elements at top to be hidden or dark */
+[style*="position: fixed"],
+[style*="position: sticky"] {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Hide any remaining top bar elements */
+ytd-masthead-skeleton,
+#masthead-skeleton {
+  display: none !important;
+}
+
+/* Force the entire viewport background */
+*::before,
+*::after {
+  background-color: transparent !important;
+}
+
+/* ========================================
+   HIDE HOMEPAGE RECOMMENDATIONS
+   ======================================== */
+
+/* Rich grid on homepage */
+ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer {
+  display: none !important;
+}
+
+/* Category chips */
+ytd-feed-filter-chip-bar-renderer,
+#chips-wrapper,
+#header.ytd-rich-grid-renderer,
+yt-chip-cloud-renderer {
+  display: none !important;
+}
+
+/* "Breaking news" shelf */
+ytd-rich-shelf-renderer[is-show-more-hidden],
+ytd-rich-section-renderer:has([aria-label*="Breaking"]) {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE SHORTS EVERYWHERE
+   ======================================== */
+
+/* Shorts shelf */
+ytd-rich-shelf-renderer[is-shorts],
+ytd-reel-shelf-renderer,
+ytd-rich-section-renderer:has(ytd-reel-shelf-renderer) {
+  display: none !important;
+}
+
+/* Shorts in search results */
+ytd-reel-item-renderer {
+  display: none !important;
+}
+
+/* Shorts tab on channel pages */
+yt-tab-shape[tab-title="Shorts"],
+tp-yt-paper-tab:has([tab-title="Shorts"]) {
+  display: none !important;
+}
+
+/* Shorts badge */
+ytd-thumbnail-overlay-time-status-renderer[overlay-style="SHORTS"] {
+  display: none !important;
+}
+
+/* Hide shorts in mini-guide */
+ytd-mini-guide-entry-renderer[aria-label="Shorts"] {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE COMMENTS SECTION
+   ======================================== */
+
+ytd-comments,
+#comments,
+ytd-comment-thread-renderer,
+ytd-comments-header-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE SIDEBAR RECOMMENDATIONS (WATCH PAGE)
+   ======================================== */
+
+/* Secondary column (related videos) */
+#secondary.ytd-watch-flexy,
+#related,
+ytd-watch-next-secondary-results-renderer {
+  display: none !important;
+}
+
+/* Make primary column full width */
+#primary.ytd-watch-flexy {
+  max-width: 100% !important;
+}
+
+/* ========================================
+   HIDE END CARDS / ANNOTATIONS
+   ======================================== */
+
+.ytp-ce-element,
+.ytp-ce-covering-overlay,
+.ytp-ce-element-shadow,
+.ytp-ce-covering-image,
+.ytp-ce-expanding-image,
+.ytp-ce-video,
+.ytp-ce-channel,
+.ytp-ce-playlist,
+.ytp-cards-teaser,
+.ytp-cards-button,
+.iv-branding,
+.annotation {
+  display: none !important;
+}
+
+/* End screen */
+.ytp-endscreen-content,
+.ytp-endscreen-previous,
+.ytp-endscreen-next {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE PREMIUM / UPSELLS
+   ======================================== */
+
+/* Premium upsell */
+ytd-mealbar-promo-renderer,
+ytd-background-promo-renderer,
+ytd-statement-banner-renderer,
+ytd-brand-video-shelf-renderer,
+#masthead-ad,
+ytd-banner-promo-renderer,
+ytd-compact-promoted-video-renderer,
+ytd-promoted-sparkles-web-renderer,
+ytd-promoted-video-renderer {
+  display: none !important;
+}
+
+/* "Try YouTube Premium" */
+tp-yt-paper-dialog:has([aria-label*="Premium"]),
+ytd-popup-container:has([aria-label*="Premium"]) {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE MINI PLAYER
+   ======================================== */
+
+ytd-miniplayer,
+ytd-miniplayer-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE EXPLORE / TRENDING
+   ======================================== */
+
+ytd-guide-entry-renderer[is-primary]:has([title="Explore"]),
+ytd-guide-entry-renderer[is-primary]:has([title="Trending"]),
+ytd-guide-section-renderer:has([title="Explore"]) {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE VIDEO INFO CLUTTER
+   ======================================== */
+
+/* Channel subscriber count on watch page */
+#owner-sub-count {
+  display: none !important;
+}
+
+/* Join button */
+#sponsor-button,
+ytd-button-renderer[button-renderer]:has([aria-label*="Join"]) {
+  display: none !important;
+}
+
+/* Thanks button */
+ytd-button-renderer:has([aria-label*="Thanks"]) {
+  display: none !important;
+}
+
+/* Clip button */
+ytd-button-renderer:has([aria-label*="Clip"]) {
+  display: none !important;
+}
+
+/* Download button (Premium) */
+ytd-download-button-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   SIMPLIFY VIDEO INFO (KEEP ESSENTIAL)
+   ======================================== */
+
+/* Video title */
+h1.ytd-watch-metadata yt-formatted-string,
+#title.ytd-watch-metadata {
+  color: var(--text-primary) !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+}
+
+/* Channel name */
+#channel-name a,
+ytd-channel-name a {
+  color: var(--text-primary) !important;
+}
+
+/* View count and date */
+#info-strings span,
+ytd-video-primary-info-renderer #info-text {
+  color: var(--text-secondary) !important;
+}
+
+/* ========================================
+   STYLE ACTION BUTTONS (LIKE, SHARE, ETC)
+   ======================================== */
+
+/* Button container */
+#actions.ytd-watch-metadata,
+#top-level-buttons-computed {
+  background-color: transparent !important;
+}
+
+/* Individual buttons */
+ytd-menu-renderer yt-button-shape button,
+ytd-segmented-like-dislike-button-renderer button,
+#segmented-like-button button,
+#segmented-dislike-button button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+ytd-menu-renderer yt-button-shape button:hover,
+ytd-segmented-like-dislike-button-renderer button:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Like button active state */
+#segmented-like-button button[aria-pressed="true"] {
+  color: var(--accent-blue) !important;
+}
+
+/* ========================================
+   VIDEO PLAYER STYLING
+   ======================================== */
+
+/* Player background */
+#movie_player,
+.html5-video-player {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Progress bar */
+.ytp-progress-bar-container .ytp-play-progress {
+  background-color: var(--accent-red) !important;
+}
+
+.ytp-progress-bar-container .ytp-load-progress {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Scrubber */
+.ytp-scrubber-button {
+  background-color: var(--accent-red) !important;
+}
+
+/* Time display */
+.ytp-time-display {
+  color: var(--text-primary) !important;
+}
+
+/* Volume slider */
+.ytp-volume-panel {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Settings menu */
+.ytp-settings-menu,
+.ytp-panel {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.ytp-menuitem-label,
+.ytp-menuitem-content {
+  color: var(--text-primary) !important;
+}
+
+/* Chapters */
+.ytp-chapter-container {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* ========================================
+   SUBSCRIPTIONS PAGE - MINIMAL TEXT LIST
+   ======================================== */
+
+/* Hide the grid layout controls */
+ytd-feed-filter-chip-bar-renderer,
+#chips-wrapper,
+#chips,
+ytd-browse[page-subtype="subscriptions"] #header,
+ytd-browse[page-subtype="subscriptions"] .grid-subheader,
+#page-header,
+.page-header-view-model-wiz__page-header-headline-image {
+  display: none !important;
+}
+
+/* Convert grid to centered list */
+ytd-rich-grid-renderer {
+  display: block !important;
+  max-width: 700px !important;
+  margin: 40px auto !important;
+  padding: 0 20px !important;
+}
+
+#contents.ytd-rich-grid-renderer {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+}
+
+ytd-rich-grid-row,
+#contents.ytd-rich-grid-row {
+  display: contents !important;
+}
+
+/* ========================================
+   VIDEO ITEMS - CLEAN TEXT ROWS
+   ======================================== */
+
+ytd-rich-item-renderer {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  contain: none !important;
+}
+
+ytd-rich-item-renderer #content,
+ytd-rich-item-renderer #dismissible,
+ytd-rich-item-renderer ytd-rich-grid-media,
+ytd-rich-grid-media,
+ytd-rich-grid-media #dismissible {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* HIDE EVERYTHING THUMBNAIL RELATED */
+ytd-rich-item-renderer #thumbnail,
+ytd-rich-item-renderer a#thumbnail,
+ytd-rich-item-renderer ytd-thumbnail,
+ytd-rich-grid-media #thumbnail,
+ytd-rich-grid-media a#thumbnail,
+ytd-thumbnail,
+#thumbnail-container,
+yt-img-shadow,
+ytd-rich-item-renderer img,
+ytd-rich-grid-media img,
+#avatar-link,
+#avatar,
+#avatar-container,
+ytd-channel-thumbnail,
+#overlays,
+ytd-thumbnail-overlay-time-status-renderer,
+ytd-thumbnail-overlay-resume-playback-renderer,
+ytd-thumbnail-overlay-now-playing-renderer {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
+/* THE ACTUAL TEXT ROW */
+ytd-rich-grid-media #details {
+  display: block !important;
+  padding: 14px 16px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  cursor: pointer !important;
+  transition: background-color 0.1s ease !important;
+}
+
+ytd-rich-grid-media #details:hover {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Video title */
+ytd-rich-grid-media #video-title-link,
+ytd-rich-grid-media #video-title,
+#video-title-link,
+#video-title {
+  color: var(--text-primary) !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  margin: 0 0 6px 0 !important;
+  display: block !important;
+}
+
+#video-title-link yt-formatted-string,
+#video-title yt-formatted-string {
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Meta container - channel + views inline */
+ytd-rich-grid-media #meta,
+#meta.ytd-rich-grid-media {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+/* Channel name */
+#channel-name,
+ytd-channel-name {
+  display: inline !important;
+}
+
+#text.ytd-channel-name,
+ytd-channel-name a,
+#channel-name a {
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+/* Metadata (views, time ago) */
+#metadata-line {
+  display: inline-flex !important;
+  align-items: center !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+}
+
+#metadata-line span {
+  color: var(--text-muted) !important;
+}
+
+/* Hide clutter */
+ytd-rich-item-renderer #menu,
+ytd-rich-item-renderer ytd-menu-renderer,
+ytd-badge-supported-renderer,
+#badges,
+.badge-style-type-verified,
+ytd-rich-grid-media #avatar-link {
+  display: none !important;
+}
+
+/* Video renderer (search results) */
+ytd-video-renderer,
+ytd-grid-video-renderer {
+  display: block !important;
+  width: 100% !important;
+  max-width: 700px !important;
+  margin: 0 auto !important;
+  padding: 14px 16px !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  background: transparent !important;
+}
+
+ytd-video-renderer:hover,
+ytd-grid-video-renderer:hover {
+  background-color: var(--bg-secondary) !important;
+}
+
+ytd-video-renderer ytd-thumbnail,
+ytd-video-renderer #thumbnail,
+ytd-video-renderer img,
+ytd-grid-video-renderer ytd-thumbnail,
+ytd-grid-video-renderer img {
+  display: none !important;
+}
+
+ytd-video-renderer #dismissible {
+  display: block !important;
+}
+
+ytd-video-renderer #meta {
+  margin: 0 !important;
+}
+
+/* ========================================
+   SEARCH RESULTS - SAME MINIMAL LIST
+   ======================================== */
+
+ytd-search #contents.ytd-section-list-renderer {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  max-width: 800px !important;
+  margin: 0 auto !important;
+  padding: 20px !important;
+}
+
+ytd-search ytd-video-renderer {
+  width: 100% !important;
+  max-width: 700px !important;
+}
+
+ytd-search ytd-video-renderer #thumbnail,
+ytd-search ytd-video-renderer ytd-thumbnail {
+  display: none !important;
+}
+
+ytd-search ytd-video-renderer #dismissible {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+ytd-search ytd-channel-renderer,
+ytd-search ytd-shelf-renderer,
+ytd-search ytd-horizontal-card-list-renderer,
+ytd-search ytd-movie-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   WATCH LATER & PLAYLIST - MINIMAL LIST
+   ======================================== */
+
+ytd-playlist-video-list-renderer #contents {
+  max-width: 700px !important;
+  margin: 0 auto !important;
+}
+
+ytd-playlist-video-renderer {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+ytd-playlist-video-renderer:hover {
+  background-color: var(--bg-secondary) !important;
+}
+
+ytd-playlist-video-renderer #thumbnail,
+ytd-playlist-video-renderer ytd-thumbnail {
+  display: none !important;
+}
+
+ytd-playlist-video-renderer #meta,
+ytd-playlist-video-renderer #content {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+ytd-playlist-video-renderer #video-title {
+  color: var(--text-primary) !important;
+  font-size: 15px !important;
+}
+
+ytd-playlist-video-renderer #byline-container {
+  color: var(--text-secondary) !important;
+}
+
+/* Hide drag handle and index number */
+ytd-playlist-video-renderer #index,
+ytd-playlist-video-renderer #reorder {
+  display: none !important;
+}
+
+/* Hide playlist sidebar header clutter */
+ytd-playlist-sidebar-renderer #stats,
+ytd-playlist-sidebar-renderer #menu,
+ytd-playlist-sidebar-renderer #description,
+ytd-playlist-sidebar-renderer ytd-button-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE YOUTUBE'S FEED (only when our list exists)
+   ======================================== */
+
+/* Only hide when our custom list is present (class added by JS) */
+body.primeyt-list-active ytd-rich-grid-renderer,
+body.primeyt-list-active ytd-section-list-renderer,
+body.primeyt-list-active #contents.ytd-rich-grid-renderer,
+body.primeyt-list-active ytd-continuation-item-renderer {
+  display: none !important;
+}
+
+/* Ensure our list is visible and formatted */
+#primeyt-video-list {
+  display: block !important;
+  max-width: 900px !important;
+  margin: 60px auto !important;
+  padding: 0 24px !important;
+  z-index: 999 !important;
+  position: relative !important;
+  background: var(--bg-primary) !important;
+}
+
+.primeyt-video-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.primeyt-video-row:hover {
+  background-color: var(--bg-secondary);
+}
+
+.primeyt-video-row:first-child {
+  border-top: 1px solid var(--border-color);
+}
+
+.primeyt-video-left {
+  flex: 1;
+  min-width: 0;
+  margin-right: 24px;
+}
+
+.primeyt-video-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.primeyt-video-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.primeyt-video-channel {
+  color: var(--text-secondary);
+  font-size: 13px;
+  width: 180px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.primeyt-video-date {
+  color: var(--text-muted);
+  font-size: 13px;
+  width: 60px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Focus state for vim navigation */
+.primeyt-video-row.primeyt-focused {
+  background-color: var(--bg-tertiary);
+  box-shadow: inset 3px 0 0 var(--accent-blue);
+}
+
+/* ========================================
+   HIDE YOUTUBE'S FEED (only when our list exists)
+   ======================================== */
+
+/* Only hide when our custom list is present (class added by JS) */
+body.primeyt-list-active ytd-rich-grid-renderer,
+body.primeyt-list-active ytd-section-list-renderer,
+body.primeyt-list-active #contents.ytd-rich-grid-renderer,
+body.primeyt-list-active ytd-continuation-item-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   FOCUS INDICATOR FOR OTHER LIST ITEMS
+   ======================================== */
+
+ytd-video-renderer.primeyt-focused,
+ytd-grid-video-renderer.primeyt-focused,
+ytd-playlist-video-renderer.primeyt-focused {
+  background-color: var(--bg-tertiary) !important;
+  border-left: 3px solid var(--accent-blue) !important;
+}
+
+/* ========================================
+   WATCH LATER / PLAYLIST STYLING
+   ======================================== */
+
+/* Playlist panel */
+ytd-playlist-panel-renderer {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+ytd-playlist-panel-video-renderer {
+  background-color: transparent !important;
+}
+
+ytd-playlist-panel-video-renderer:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Playlist sidebar on playlist pages */
+ytd-playlist-sidebar-renderer {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* ========================================
+   THEATER MODE ENHANCEMENTS
+   ======================================== */
+
+/* Force theater mode styles */
+ytd-watch-flexy[theater] #player-theater-container {
+  background-color: var(--bg-primary) !important;
+  max-height: calc(100vh - 56px) !important;
+}
+
+/* Center video in theater mode */
+ytd-watch-flexy[theater] #player-container {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+/* Video info below player in theater */
+ytd-watch-flexy[theater] #below {
+  max-width: 1280px !important;
+  margin: 0 auto !important;
+  padding: 16px 24px !important;
+}
+
+/* ========================================
+   SCROLLBAR STYLING
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* ========================================
+   PRIMEYT FOCUS INDICATOR
+   ======================================== */
+
+.primeyt-focused {
+  outline: 2px solid var(--focus-ring) !important;
+  outline-offset: 2px;
+}
+
+.primeyt-focused ytd-thumbnail {
+  transform: scale(1.02);
+  transition: transform 0.15s ease;
+}
+
+/* ========================================
+   PRIMEYT STATS WIDGET
+   ======================================== */
+
+#primeyt-stats {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  z-index: 9999;
+  line-height: 2;
+}
+
+#primeyt-stats .stat-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#primeyt-stats .stat-label {
+  color: var(--text-muted);
+  min-width: 28px;
+  font-size: 12px;
+}
+
+#primeyt-stats .stat-value {
+  color: var(--text-primary);
+  font-weight: 600;
+  min-width: 60px;
+  font-size: 14px;
+}
+
+#primeyt-stats .stat-videos {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+#primeyt-stats .stat-value.good {
+  color: var(--accent-green);
+}
+
+#primeyt-stats .stat-value.warning {
+  color: var(--accent-yellow);
+}
+
+#primeyt-stats .stat-value.bad {
+  color: var(--accent-red);
+}
+
+/* ========================================
+   LEADER KEY INDICATOR
+   ======================================== */
+
+#primeyt-leader {
+  position: fixed;
+  bottom: 50%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  background-color: var(--bg-secondary);
+  border: 2px solid var(--accent-purple);
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 18px;
+  color: var(--accent-purple);
+  z-index: 10000;
+  display: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+#primeyt-leader.active {
+  display: block;
+}
+
+#primeyt-leader .keys {
+  color: var(--text-primary);
+  font-weight: bold;
+}
+
+/* ========================================
+   PRIMEYT DIALOGS (Search)
+   ======================================== */
+
+.primeyt-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 10001;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+}
+
+.primeyt-overlay.active {
+  display: flex;
+}
+
+.primeyt-dialog {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-blue);
+  border-radius: 12px;
+  padding: 0;
+  width: 520px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.primeyt-dialog-input {
+  width: 100%;
+  padding: 18px 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.primeyt-dialog-input::placeholder {
+  color: var(--text-muted);
+}
+
+.primeyt-dialog-hint {
+  padding: 10px 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ========================================
+   HELP DIALOG
+   ======================================== */
+
+.primeyt-help-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 550px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.primeyt-help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.primeyt-help-close {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.primeyt-help-content {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.primeyt-help-section:last-child {
+  grid-column: 1 / -1;
+}
+
+.primeyt-help-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-purple);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.primeyt-help-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.primeyt-help-row span {
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.primeyt-help-row kbd {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 20px;
+  text-align: center;
+}
+
+/* ========================================
+   HOMEPAGE MINIMAL STATE
+   ======================================== */
+
+/* When on homepage, show a minimal centered message */
+ytd-browse[page-subtype="home"] #contents {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 50vh !important;
+}
+
+/* Hide the actual grid content */
+ytd-browse[page-subtype="home"] ytd-rich-grid-renderer #contents {
+  display: none !important;
+}
+
+/* ========================================
+   TOAST NOTIFICATIONS
+   ======================================== */
+
+#primeyt-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  color: var(--accent-green);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  z-index: 99999;
+  border: 1px solid var(--accent-green);
+  display: none;
+}
+
+#primeyt-toast.active {
+  display: block;
+}
+
+/* ========================================
+   AUTO-HIDE CURSOR ON VIDEO
+   ======================================== */
+
+.primeyt-hide-cursor,
+.primeyt-hide-cursor * {
+  cursor: none !important;
+}
+
+/* ========================================
+   CHANNEL PAGE CLEANUP
+   ======================================== */
+
+/* Hide channel banner for cleaner look */
+#channel-header-container {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Hide featured channels shelf */
+ytd-shelf-renderer:has([title*="Featured"]),
+ytd-shelf-renderer:has([title*="channels"]) {
+  display: none !important;
+}
+
+/* Hide community tab content */
+ytd-browse[page-subtype="channels"] ytd-item-section-renderer:has(ytd-backstage-post-thread-renderer) {
+  display: none !important;
+}
+
+/* ========================================
+   HIDE ALL YOUTUBE POPUPS, SURVEYS, NOTIFICATIONS
+   ======================================== */
+
+/* Survey popups */
+ytd-popup-container,
+ytd-single-option-survey-renderer,
+ytd-multi-option-survey-renderer,
+ytd-enforcement-message-view-model,
+tp-yt-paper-dialog,
+ytd-mealbar-promo-renderer,
+ytd-consent-bump-v2-lightbox,
+iron-overlay-backdrop {
+  display: none !important;
+}
+
+/* Notification popups */
+ytd-notification-renderer,
+ytd-simple-menu-header-renderer,
+#notification-permission-prompt,
+.ytd-notification-multi-action-renderer {
+  display: none !important;
+}
+
+/* Cookie consent and other overlays */
+ytd-consent-bump-lightbox,
+#consent-bump,
+.consent-bump-v2-lightbox {
+  display: none !important;
+}
+
+/* Any fixed/modal overlays from YouTube */
+tp-yt-iron-overlay-backdrop,
+.opened,
+[aria-modal="true"]:not(.primeyt-overlay):not(.primeyt-dialog):not(.primeyt-help-dialog) {
+  display: none !important;
+}
+
+/* YouTube's feedback buttons and surveys */
+#yt-survey-container,
+.ytd-mealbar-promo-renderer,
+ytd-survey-view-model,
+yt-survey-view-model {
+  display: none !important;
+}
+
+/* Hide "Send feedback" and similar buttons */
+#feedback,
+ytd-button-renderer[button-renderer]:has([aria-label*="feedback" i]) {
+  display: none !important;
+}
+
