@@ -7,98 +7,144 @@
   let cursorHideTimer = null;
   
   // ==========================================
+  // Page Type Detection & Body Classes
+  // ==========================================
+  
+  function getPageType() {
+    const path = window.location.pathname;
+    if (path === '/watch') return 'watch';
+    if (path === '/feed/subscriptions') return 'subscriptions';
+    if (path.startsWith('/feed/')) return 'feed';
+    if (path === '/results') return 'search';
+    if (path === '/') return 'home';
+    if (path.startsWith('/shorts/')) return 'shorts';
+    if (path.startsWith('/playlist')) return 'playlist';
+    if (path.startsWith('/@') || path.startsWith('/channel/') || path.startsWith('/c/')) return 'channel';
+    return 'other';
+  }
+  
+  function updateBodyClasses() {
+    // Wait for body to exist
+    if (!document.body) {
+      document.addEventListener('DOMContentLoaded', updateBodyClasses);
+      return 'unknown';
+    }
+    
+    const pageType = getPageType();
+    
+    // Remove all page type classes
+    document.body.classList.remove(
+      'primeyt-page-watch',
+      'primeyt-page-subscriptions',
+      'primeyt-page-feed',
+      'primeyt-page-search',
+      'primeyt-page-home',
+      'primeyt-page-shorts',
+      'primeyt-page-playlist',
+      'primeyt-page-channel',
+      'primeyt-page-other'
+    );
+    
+    // Add current page type class
+    document.body.classList.add(`primeyt-page-${pageType}`);
+    
+    // Add extension active marker
+    document.body.classList.add('primeyt-active');
+    
+    console.log(`[PrimeYT] Page type: ${pageType}`);
+    
+    return pageType;
+  }
+  
+  // ==========================================
   // Force Dark Background Immediately
   // ==========================================
   
   function forceBackground() {
     document.documentElement.style.backgroundColor = '#282c34';
-    document.body.style.backgroundColor = '#282c34';
+    if (document.body) {
+      document.body.style.backgroundColor = '#282c34';
+    }
     
-    // Remove any skeleton/loading elements
-    const skeletons = document.querySelectorAll('ytd-masthead-skeleton, #masthead-skeleton, [class*="skeleton"]');
+    // Remove skeleton/loading elements ONLY
+    const skeletons = document.querySelectorAll('ytd-masthead-skeleton, #masthead-skeleton');
     skeletons.forEach(el => el.remove());
   }
   
   // Run immediately
   forceBackground();
   
+  // Set body class as soon as possible
+  if (document.body) {
+    updateBodyClasses();
+  } else {
+    document.addEventListener('DOMContentLoaded', updateBodyClasses);
+  }
+  
   // ==========================================
-  // Remove Popups & Surveys
+  // Hide Surveys & Promos (NOT popup containers!)
   // ==========================================
   
-  function removePopups() {
-    // Remove survey popups and skeletons
-    const popupSelectors = [
-      'ytd-popup-container',
-      'tp-yt-paper-dialog',
+  function hideSurveysAndPromos() {
+    // IMPORTANT: We do NOT remove or hide ytd-popup-container, tp-yt-paper-dialog,
+    // or iron-overlay-backdrop because YouTube's player needs them for menus, 
+    // subtitles, quality settings, etc.
+    
+    // Only hide/remove actual survey and promo content
+    const promoSelectors = [
       'ytd-single-option-survey-renderer',
       'ytd-multi-option-survey-renderer',
       'ytd-enforcement-message-view-model',
       'ytd-consent-bump-v2-lightbox',
-      'iron-overlay-backdrop',
-      'tp-yt-iron-overlay-backdrop',
       '#consent-bump',
       'ytd-mealbar-promo-renderer',
-      'ytd-masthead-skeleton',
-      '#masthead-skeleton'
+      'ytd-background-promo-renderer',
+      'ytd-statement-banner-renderer',
+      '#masthead-ad'
     ];
     
-    popupSelectors.forEach(selector => {
+    promoSelectors.forEach(selector => {
       const elements = document.querySelectorAll(selector);
       elements.forEach(el => {
-        if (el && !el.closest('.primeyt-overlay') && !el.closest('.primeyt-dialog')) {
-          el.remove();
-        }
+        // Hide instead of remove to be less destructive
+        el.style.display = 'none';
       });
     });
     
     // Also force background
     forceBackground();
-    
-    // Remove thumbnails from feed pages
-    removeThumbnails();
   }
   
-  function removeThumbnails() {
-    if (!document.body.classList.contains('primeyt-list-active')) return;
-    // Only on feed pages, not watch pages
-    if (window.location.pathname === '/watch') return;
+  function setupPromoHiding() {
+    // Initial hide
+    hideSurveysAndPromos();
     
-    const thumbnailSelectors = [
-      'ytd-rich-item-renderer ytd-thumbnail',
-      'ytd-rich-item-renderer #thumbnail',
-      'ytd-rich-item-renderer a#thumbnail',
-      'ytd-rich-grid-media #thumbnail',
-      'ytd-video-renderer ytd-thumbnail',
-      'ytd-grid-video-renderer ytd-thumbnail'
-    ];
-    
-    thumbnailSelectors.forEach(selector => {
-      const elements = document.querySelectorAll(selector);
-      elements.forEach(el => {
-        el.style.display = 'none';
-        el.style.visibility = 'hidden';
-        el.style.width = '0';
-        el.style.height = '0';
-      });
-    });
-  }
-  
-  function setupPopupRemoval() {
-    // Initial removal
-    removePopups();
-    
-    // Watch for new popups
+    // Watch for new promos (debounced)
+    let hideTimeout = null;
     const observer = new MutationObserver((mutations) => {
       let shouldCheck = false;
       for (const mutation of mutations) {
         if (mutation.addedNodes.length > 0) {
-          shouldCheck = true;
-          break;
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Only check if it looks like a promo/survey
+              const tagName = node.tagName?.toLowerCase() || '';
+              if (tagName.includes('survey') || 
+                  tagName.includes('promo') || 
+                  tagName.includes('consent') ||
+                  tagName.includes('mealbar')) {
+                shouldCheck = true;
+                break;
+              }
+            }
+          }
         }
+        if (shouldCheck) break;
       }
+      
       if (shouldCheck) {
-        removePopups();
+        if (hideTimeout) clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(hideSurveysAndPromos, 100);
       }
     });
     
@@ -232,6 +278,10 @@
     return path === '/feed/subscriptions' || path.startsWith('/feed/');
   }
 
+  function isSubscriptionsPage() {
+    return window.location.pathname === '/feed/subscriptions';
+  }
+
   function scheduleBuildCustomVideoList(delay = 500) {
     if (buildTimeout) {
       clearTimeout(buildTimeout);
@@ -257,6 +307,9 @@
 
   function formatDurationToMinutes(duration) {
     if (!duration) return '';
+    
+    // Clean up the duration string
+    duration = duration.trim();
     
     // Duration format: "4:03" (mm:ss) or "1:57:16" (h:mm:ss)
     const parts = duration.split(':').map(p => parseInt(p, 10));
@@ -304,14 +357,15 @@
   }
   
   function buildCustomVideoList() {
-    if (!isFeedPage()) return;
+    if (!isSubscriptionsPage()) return;
     
     // Don't rebuild if list already exists and has videos
     const existingList = document.getElementById('primeyt-video-list');
-    if (existingList && existingList.children.length > 0) {
+    if (existingList && existingList.querySelectorAll('.primeyt-video-row').length > 0) {
       return;
     }
 
+    // Collect videos from BOTH sources
     const videosFromData = collectVideosFromData();
     const videosFromDom = collectVideosFromDom();
 
@@ -333,8 +387,6 @@
         console.log('[PrimeYT] Unable to build custom list after multiple attempts');
         console.log('[PrimeYT] Debug: ytInitialData available:', !!window.ytInitialData);
         console.log('[PrimeYT] Debug: DOM elements found:', document.querySelectorAll('ytd-rich-item-renderer').length);
-        // Don't add the class if we can't build the list - this prevents hiding the grid
-        // The user will see the normal YouTube grid, which is better than broken empty blocks
       }
       return;
     }
@@ -360,19 +412,6 @@
       row.dataset.url = video.url;
       row.dataset.index = index;
       
-      // Apply inline styles to ensure visibility
-      row.style.cssText = `
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        padding: 10px 16px !important;
-        border-bottom: 1px solid #3e4451 !important;
-        cursor: pointer !important;
-        background: transparent !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-      `;
-      
       // Clean title and limit to 6 words
       let cleanTitle = video.title.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
       const words = cleanTitle.split(' ');
@@ -384,15 +423,14 @@
       const durationMin = formatDurationToMinutes(video.duration);
       const dateStr = formatRelativeDate(video.time);
       
-      // Use inline styles to guarantee visibility
       row.innerHTML = `
-        <div class="primeyt-video-left" style="flex:1;min-width:0;margin-right:24px;">
-          <div class="primeyt-video-title" style="color:#abb2bf;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(video.title)}">${escapeHtml(cleanTitle)}</div>
+        <div class="primeyt-video-left">
+          <div class="primeyt-video-title" title="${escapeHtml(video.title)}">${escapeHtml(cleanTitle)}</div>
         </div>
-        <div class="primeyt-video-right" style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
-          <div class="primeyt-video-channel" style="color:#5c6370;font-size:13px;width:140px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(video.channel)}">${escapeHtml(video.channel)}</div>
-          <div class="primeyt-video-duration" style="color:#61afef;font-size:12px;width:50px;text-align:right;white-space:nowrap;">${escapeHtml(durationMin)}</div>
-          <div class="primeyt-video-date" style="color:#4b5263;font-size:12px;width:55px;text-align:right;white-space:nowrap;">${escapeHtml(dateStr)}</div>
+        <div class="primeyt-video-right">
+          <div class="primeyt-video-channel" title="${escapeHtml(video.channel)}">${escapeHtml(video.channel)}</div>
+          <div class="primeyt-video-duration">${escapeHtml(durationMin)}</div>
+          <div class="primeyt-video-date">${escapeHtml(dateStr)}</div>
         </div>
       `;
       
@@ -400,152 +438,20 @@
         window.location.href = video.url;
       });
       
-      // Add hover effect
-      row.addEventListener('mouseenter', () => {
-        row.style.backgroundColor = '#21252b';
-      });
-      row.addEventListener('mouseleave', () => {
-        row.style.backgroundColor = 'transparent';
-      });
-      
       list.appendChild(row);
     });
 
-    // Find the right container - prioritize #content or #page-manager for better visibility
-    let container = document.querySelector('#content');
-    if (!container) {
-      container = document.querySelector('#page-manager');
-    }
-    if (!container) {
-      container = document.querySelector('ytd-browse[page-subtype="subscriptions"]');
-    }
-    if (!container) {
-      container = document.body;
-    }
-    
-    // Hide the grid FIRST before inserting our list
-    const grid = document.querySelector('ytd-browse[page-subtype="subscriptions"] ytd-rich-grid-renderer');
-    const contents = document.querySelector('ytd-browse[page-subtype="subscriptions"] #contents.ytd-rich-grid-renderer');
-    
-    if (grid) {
-      grid.style.display = 'none';
-      grid.style.visibility = 'hidden';
-      grid.style.height = '0';
-      grid.style.overflow = 'hidden';
-    }
-    
-    if (contents) {
-      contents.style.display = 'none';
-      contents.style.visibility = 'hidden';
-      contents.style.height = '0';
-      contents.style.overflow = 'hidden';
-    }
-    
-    // Hide all rich item renderers
-    const richItems = document.querySelectorAll('ytd-browse[page-subtype="subscriptions"] ytd-rich-item-renderer');
-    richItems.forEach(item => {
-      item.style.display = 'none';
-      item.style.visibility = 'hidden';
-      item.style.height = '0';
-      item.style.overflow = 'hidden';
-    });
-    
-    // Hide duration overlays that might be floating
-    const durationOverlays = document.querySelectorAll('ytd-browse[page-subtype="subscriptions"] ytd-thumbnail-overlay-time-status-renderer, ytd-browse[page-subtype="subscriptions"] span#text.ytd-thumbnail-overlay-time-status-renderer');
-    durationOverlays.forEach(overlay => {
-      overlay.style.display = 'none';
-      overlay.style.visibility = 'hidden';
-      overlay.style.opacity = '0';
-    });
-    
-    // NUCLEAR OPTION: Hide the ENTIRE page content except our list
-    const elementsToHide = [
-      '#page-manager',
-      '#content',
-      'ytd-browse',
-      'ytd-rich-grid-renderer',
-      'ytd-section-list-renderer',
-      'ytd-rich-item-renderer',
-      'ytd-thumbnail-overlay-time-status-renderer',
-      '[class*="thumbnail"]',
-      '[id*="thumbnail"]'
-    ];
-    
-    elementsToHide.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        if (el.id !== 'primeyt-video-list' && !el.closest('#primeyt-video-list')) {
-          el.style.setProperty('display', 'none', 'important');
-          el.style.setProperty('visibility', 'hidden', 'important');
-          el.style.setProperty('opacity', '0', 'important');
-          el.style.setProperty('pointer-events', 'none', 'important');
-        }
-      });
-    });
-    
-    // Create an inner container for centered content
-    const innerContainer = document.createElement('div');
-    innerContainer.style.cssText = `
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 20px 24px;
-    `;
-    
-    // Add top border to first row
-    const firstRow = list.firstChild;
-    if (firstRow) {
-      firstRow.style.borderTop = '1px solid #3e4451';
-    }
-    
-    // Move all rows into the inner container
-    while (list.firstChild) {
-      innerContainer.appendChild(list.firstChild);
-    }
-    list.appendChild(innerContainer);
-    
-    // Set final styles on the list - fixed position overlay that covers EVERYTHING
-    list.style.cssText = `
-      display: block !important;
-      visibility: visible !important;
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      overflow-y: auto !important;
-      z-index: 999999 !important;
-      background: #282c34 !important;
-      opacity: 1 !important;
-      padding-top: 60px !important;
-    `;
+    // Create wrapper for proper layout
+    const wrapper = document.createElement('div');
+    wrapper.id = 'primeyt-list-wrapper';
+    wrapper.appendChild(list);
     
     // Insert into body
-    document.body.appendChild(list);
+    document.body.appendChild(wrapper);
     
-    // Add class and hide the original grid
+    // Add class to body to trigger CSS hiding of YouTube grid
     document.body.classList.add('primeyt-list-active');
     
-    // Keep YouTube content hidden (they might restore it)
-    const keepHidden = () => {
-      const hideSelectors = ['#page-manager', '#content', 'ytd-browse', 'ytd-rich-grid-renderer'];
-      hideSelectors.forEach(selector => {
-        document.querySelectorAll(selector).forEach(el => {
-          if (el.id !== 'primeyt-video-list' && !el.closest('#primeyt-video-list')) {
-            el.style.setProperty('display', 'none', 'important');
-          }
-        });
-      });
-    };
-    
-    // Run multiple times to ensure it stays hidden
-    setTimeout(keepHidden, 100);
-    setTimeout(keepHidden, 300);
-    setTimeout(keepHidden, 500);
-    setTimeout(keepHidden, 1000);
-    setTimeout(keepHidden, 2000);
-    
-    // Debug: log first 3 video titles and verify list content
     console.log(`[PrimeYT] SUCCESS: Built list with ${videos.length} videos`);
     console.log('[PrimeYT] Sample videos:', videos.slice(0, 3).map(v => ({
       title: v.title?.substring(0, 30),
@@ -553,12 +459,6 @@
       duration: v.duration || '(none)',
       time: v.time || '(none)'
     })));
-    
-    // Log the actual HTML of first row
-    const firstRowCheck = innerContainer.querySelector('.primeyt-video-row');
-    if (firstRowCheck) {
-      console.log('[PrimeYT] First row HTML:', firstRowCheck.innerHTML.substring(0, 300));
-    }
   }
 
   function collectVideosFromData() {
@@ -569,7 +469,7 @@
     const videos = [];
 
     const stack = [data];
-    const maxNodes = 20000; // avoid runaway traversal
+    const maxNodes = 20000;
     let traversed = 0;
     const seen = new Set();
 
@@ -640,7 +540,10 @@
       '';
 
     const duration = video.lengthText?.simpleText ||
-      (video.lengthText?.runs || []).map(run => run.text).join('').trim() || '';
+      (video.lengthText?.runs || []).map(run => run.text).join('').trim() ||
+      video.thumbnailOverlays?.find(o => o.thumbnailOverlayTimeStatusRenderer)
+        ?.thumbnailOverlayTimeStatusRenderer?.text?.simpleText ||
+      '';
 
     return { title, url, channel, time: publishedText, duration };
   }
@@ -664,59 +567,23 @@
     const uniqueElements = Array.from(new Set(videoElements));
     
     const videos = [];
-    let extractedCount = 0;
-    let failedCount = 0;
     
-    uniqueElements.forEach((el, index) => {
+    uniqueElements.forEach((el) => {
       // Only process visible elements
       if (el.offsetParent === null) return;
-      
-      // Quick check: does this element look like a video container?
-      const hasVideoIndicators = el.querySelector('#video-title, #video-title-link, a[href*="/watch"], ytd-rich-grid-media');
-      if (!hasVideoIndicators && el.tagName !== 'YTD-RICH-ITEM-RENDERER') {
-        // Skip elements that don't look like video containers
-        return;
-      }
       
       const data = extractVideoData(el);
       if (data && data.title && data.url) {
         videos.push(data);
-        extractedCount++;
-      } else {
-        failedCount++;
-        // Log first few failures for debugging
-        if (failedCount <= 3 && buildAttempts > 5) {
-          const watchLinks = el.querySelectorAll('a[href*="/watch"]');
-          const linkInfo = [];
-          watchLinks.forEach((link, i) => {
-            if (i < 3) {
-              linkInfo.push({
-                id: link.id,
-                title: link.getAttribute('title')?.substring(0, 30),
-                ariaLabel: link.getAttribute('aria-label')?.substring(0, 30),
-                href: link.href?.substring(0, 50)
-              });
-            }
-          });
-          console.log(`[PrimeYT] Failed to extract from element ${index}:`, {
-            tagName: el.tagName,
-            watchLinksCount: watchLinks.length,
-            linkInfo: linkInfo
-          });
-        }
       }
     });
-    
-    if (extractedCount === 0 && uniqueElements.length > 0) {
-      console.log(`[PrimeYT] Debug: Found ${uniqueElements.length} elements but extracted 0 videos. Sample element:`, uniqueElements[0]);
-    }
     
     return videos;
   }
   
   function extractVideoData(element) {
     try {
-      // SIMPLE APPROACH: Find the watch link and get title from its attributes
+      // STEP 1: Find the watch link and get URL
       const watchLinks = element.querySelectorAll('a[href*="/watch"]');
       
       let url = '';
@@ -726,69 +593,43 @@
         const href = link.href || link.getAttribute('href') || '';
         if (!href.includes('/watch')) continue;
         
-        // Skip thumbnail links (they don't have title info)
-        if (link.id === 'thumbnail' || link.closest('#thumbnail')) continue;
-        
         // Get URL
         if (!url) {
           url = href;
           if (url.startsWith('/')) url = 'https://www.youtube.com' + url;
         }
         
-        // Get title from this link's attributes
-        const linkTitle = link.getAttribute('title') || link.getAttribute('aria-label') || '';
-        if (linkTitle && !linkTitle.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-          title = linkTitle;
-          break;
+        // Try to get title from link with id="video-title-link" or id="video-title"
+        if (link.id === 'video-title-link' || link.id === 'video-title') {
+          title = link.getAttribute('title') || link.textContent || '';
+          if (title) break;
         }
+      }
+      
+      // STEP 2: If no title yet, look for title elements
+      if (!title) {
+        const titleSelectors = [
+          '#video-title-link',
+          '#video-title',
+          'a[id*="video-title"]',
+          'h3 a',
+          'h3 yt-formatted-string'
+        ];
         
-        // Try getting title from yt-formatted-string inside this link
-        const formattedStr = link.querySelector('yt-formatted-string');
-        if (formattedStr) {
-          const fsTitle = formattedStr.getAttribute('title') || 
-                          formattedStr.getAttribute('aria-label') || 
-                          formattedStr.textContent || '';
-          if (fsTitle && !fsTitle.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-            title = fsTitle;
-            break;
-          }
-        }
-      }
-      
-      // If still no title, try finding it anywhere in the element (excluding thumbnails)
-      if (!title) {
-        // Look for any element with id containing "title" 
-        const titleEls = element.querySelectorAll('[id*="title"]');
-        for (const el of titleEls) {
-          if (el.closest('#thumbnail') || el.closest('ytd-thumbnail')) continue;
-          
-          const t = el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '';
-          if (t && t.length > 5 && !t.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-            title = t;
-            break;
-          }
-        }
-      }
-      
-      // Fallback: look for h3 or any heading
-      if (!title) {
-        const headings = element.querySelectorAll('h3, h2, h1');
-        for (const h of headings) {
-          if (h.closest('#thumbnail') || h.closest('ytd-thumbnail')) continue;
-          const t = h.textContent || h.innerText || '';
-          if (t && t.length > 5 && !t.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-            title = t;
-            break;
+        for (const selector of titleSelectors) {
+          const el = element.querySelector(selector);
+          if (el) {
+            title = el.getAttribute('title') || el.textContent || '';
+            if (title) break;
           }
         }
       }
       
       title = title.trim();
       
-      // Clean the title - remove duration suffix like "4 minutes, 3 seconds" or "1 hour, 57 minutes"
-      // YouTube aria-labels often end with duration info
+      // Clean the title - remove duration suffix patterns from aria-labels
       title = title.replace(/\s+\d+\s*(hour|minute|second)s?(,?\s*\d+\s*(hour|minute|second)s?)*\s*$/i, '');
-      title = title.replace(/\s+by\s+[\w\s]+\s+\d+\s*(hour|minute|second|view|day|week|month|year).*$/i, ''); // Remove "by Channel X views Y ago"
+      title = title.replace(/\s+by\s+[\w\s]+\s+\d+\s*(hour|minute|second|view|day|week|month|year).*$/i, '');
       title = title.trim();
       
       // Must have both title and URL
@@ -796,86 +637,54 @@
         return null;
       }
       
-      // Clean the URL - remove tracking parameters
+      // Clean the URL
       try {
         const urlObj = new URL(url);
         const videoId = urlObj.searchParams.get('v');
         if (videoId) {
           url = `https://www.youtube.com/watch?v=${videoId}`;
         }
-      } catch (e) {
-        // If URL parsing fails, use as-is
-      }
+      } catch (e) {}
       
-      // Channel name - try multiple approaches
+      // STEP 3: Get channel name
       let channel = '';
-      
-      // Approach 1: Look in #details or ytd-video-meta-block for channel info
-      const detailsArea = element.querySelector('#details, ytd-video-meta-block, #meta');
-      const searchArea = detailsArea || element;
-      
-      // Try to find channel name element
       const channelSelectors = [
         'ytd-channel-name yt-formatted-string#text',
         'ytd-channel-name #text',
         'ytd-channel-name a',
         '#channel-name yt-formatted-string',
-        '#channel-name #text',
         '#channel-name a',
-        '#byline-container #channel-name',
-        '#byline a',
-        'a.yt-simple-endpoint[href*="/channel/"]',
-        'a.yt-simple-endpoint[href*="/@"]',
-        'a[href*="/channel/"]',
-        'a[href*="/@"]'
+        'a[href*="/@"]',
+        'a[href*="/channel/"]'
       ];
       
       for (const selector of channelSelectors) {
-        const channelEl = searchArea.querySelector(selector);
+        const channelEl = element.querySelector(selector);
         if (channelEl) {
-          // Try various ways to get the channel name
-          channel = channelEl.textContent || channelEl.innerText || '';
+          channel = channelEl.textContent || '';
           channel = channel.trim();
-          // Skip if empty or looks like a duration/view count/number
-          if (channel && channel.length > 1 && !channel.match(/^[\d:,.\s]+$|views|ago|hour|minute|second|^\d+[KMB]?$/i)) {
+          if (channel && channel.length > 1 && !channel.match(/^[\d:,.\s]+$/)) {
             break;
           }
           channel = '';
         }
       }
       
-      // Approach 2: If still no channel, look for any link to a channel page
-      if (!channel) {
-        const channelLinks = element.querySelectorAll('a[href*="/@"], a[href*="/channel/"]');
-        for (const link of channelLinks) {
-          // Skip if inside thumbnail
-          if (link.closest('#thumbnail') || link.closest('ytd-thumbnail')) continue;
-          const text = link.textContent || link.innerText || '';
-          if (text && text.length > 1 && !text.match(/^[\d:,.\s]+$|views|ago/i)) {
-            channel = text.trim();
-            break;
-          }
-        }
-      }
-      
-      // Metadata line contains views and time
+      // STEP 4: Get upload time
       let time = '';
       const metaLine = element.querySelector('#metadata-line');
       if (metaLine) {
-        const text = metaLine.textContent || metaLine.innerText || '';
-        // Extract upload time - must contain "ago"
+        const text = metaLine.textContent || '';
         const timeMatch = text.match(/(\d+\s*(second|minute|hour|day|week|month|year)s?\s+ago|Streamed\s+\d+\s+\w+\s+ago)/i);
         if (timeMatch) {
           time = timeMatch[0];
         }
       }
       
-      // Fallback: look for spans with "ago" text
       if (!time) {
         const allSpans = element.querySelectorAll('span');
         for (const span of allSpans) {
-          const text = span.textContent || span.innerText || '';
-          // Must contain "ago" to be an upload time
+          const text = span.textContent || '';
           if (text.includes('ago')) {
             const match = text.match(/(\d+\s*(second|minute|hour|day|week|month|year)s?\s+ago|Streamed\s+\d+\s+\w+\s+ago)/i);
             if (match) {
@@ -886,36 +695,74 @@
         }
       }
       
-      // Duration from thumbnail overlay
+      // STEP 5: Get duration - THIS IS CRITICAL
       let duration = '';
-      const durationSelectors = [
-        'ytd-thumbnail-overlay-time-status-renderer #text',
-        'span#text.ytd-thumbnail-overlay-time-status-renderer',
-        'ytd-thumbnail-overlay-time-status-renderer span',
-        'ytd-thumbnail-overlay-time-status-renderer',
-        '#overlays #text',
-        '.ytd-thumbnail-overlay-time-status-renderer'
-      ];
       
-      for (const selector of durationSelectors) {
-        const durationEl = element.querySelector(selector);
-        if (durationEl) {
-          const text = durationEl.textContent || durationEl.innerText || '';
-          // Duration looks like "4:03" or "1:57:16"
-          if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-            duration = text.trim();
-            break;
+      // Method 1: Look in the thumbnail overlay (most reliable)
+      const durationEl = element.querySelector('ytd-thumbnail-overlay-time-status-renderer #text');
+      if (durationEl) {
+        const text = durationEl.textContent?.trim() || '';
+        if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+          duration = text;
+        }
+      }
+      
+      // Method 2: Look for any span with time format inside overlays
+      if (!duration) {
+        const overlays = element.querySelector('#overlays, ytd-thumbnail #overlays');
+        if (overlays) {
+          const spans = overlays.querySelectorAll('span');
+          for (const span of spans) {
+            const text = span.textContent?.trim() || '';
+            if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+              duration = text;
+              break;
+            }
           }
         }
       }
       
-      // Fallback: try to find duration in aria-label of ANY link
+      // Method 3: Parse from thumbnail link aria-label
       if (!duration) {
-        const allLinks = element.querySelectorAll('a[aria-label]');
-        for (const link of allLinks) {
-          const ariaLabel = link.getAttribute('aria-label') || '';
+        const thumbnailLink = element.querySelector('a#thumbnail[aria-label]');
+        if (thumbnailLink) {
+          const ariaLabel = thumbnailLink.getAttribute('aria-label') || '';
           
-          // aria-label might contain duration like "4 minutes, 3 seconds" or "1 hour, 57 minutes"
+          // "X minutes, Y seconds" format
+          const minSecMatch = ariaLabel.match(/(\d+)\s*minutes?,?\s*(\d+)?\s*seconds?/i);
+          if (minSecMatch) {
+            const mins = parseInt(minSecMatch[1], 10);
+            const secs = minSecMatch[2] ? parseInt(minSecMatch[2], 10) : 0;
+            duration = `${mins}:${secs.toString().padStart(2, '0')}`;
+          }
+          
+          // "X hours, Y minutes" format
+          if (!duration) {
+            const hourMinMatch = ariaLabel.match(/(\d+)\s*hours?,?\s*(\d+)?\s*minutes?/i);
+            if (hourMinMatch) {
+              const hrs = parseInt(hourMinMatch[1], 10);
+              const mins = hourMinMatch[2] ? parseInt(hourMinMatch[2], 10) : 0;
+              duration = `${hrs}:${mins.toString().padStart(2, '0')}:00`;
+            }
+          }
+        }
+      }
+      
+      // Method 4: Try to get from Polymer data
+      if (!duration && element.__data) {
+        const data = element.__data;
+        if (data.videoRenderer?.lengthText?.simpleText) {
+          duration = data.videoRenderer.lengthText.simpleText;
+        } else if (data.content?.videoRenderer?.lengthText?.simpleText) {
+          duration = data.content.videoRenderer.lengthText.simpleText;
+        }
+      }
+      
+      // Method 5: Look in aria-label of any element
+      if (!duration) {
+        const allEls = element.querySelectorAll('[aria-label]');
+        for (const el of allEls) {
+          const ariaLabel = el.getAttribute('aria-label') || '';
           const durationMatch = ariaLabel.match(/(\d+)\s*minutes?,?\s*(\d+)?\s*seconds?/i);
           if (durationMatch) {
             const mins = parseInt(durationMatch[1], 10);
@@ -923,76 +770,29 @@
             duration = `${mins}:${secs.toString().padStart(2, '0')}`;
             break;
           }
-          
-          // Try hours format
-          const hourMatch = ariaLabel.match(/(\d+)\s*hours?,?\s*(\d+)?\s*minutes?/i);
-          if (hourMatch) {
-            const hrs = parseInt(hourMatch[1], 10);
-            const mins = hourMatch[2] ? parseInt(hourMatch[2], 10) : 0;
-            duration = `${hrs}:${mins.toString().padStart(2, '0')}:00`;
-            break;
-          }
         }
       }
-      
-      // Fallback: look for duration pattern in any text content
-      if (!duration) {
-        // Check all elements for "X minutes" pattern
-        const allText = element.textContent || '';
-        const textMatch = allText.match(/(\d+)\s*minutes?/i);
-        if (textMatch) {
-          const mins = parseInt(textMatch[1], 10);
-          if (mins > 0 && mins < 1000) { // Sanity check
-            duration = `${mins}:00`;
-          }
-        }
-      }
-      
-      // Last resort: try to find time badge anywhere
-      if (!duration) {
-        const badges = element.querySelectorAll('[class*="badge"], [class*="time"], [class*="duration"]');
-        for (const badge of badges) {
-          const text = badge.textContent || '';
-          if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-            duration = text.trim();
-            break;
-          }
-        }
-      }
-      
-      // Try to get data from YouTube's internal properties (Polymer components)
-      if ((!title || !url) && element.__data) {
-        const data = element.__data;
-        if (data && !title && data.title) {
-          title = typeof data.title === 'string' ? data.title : (data.title?.text || data.title?.simpleText || '');
-        }
-        if (data && !url && data.videoId) {
-          url = `https://www.youtube.com/watch?v=${data.videoId}`;
-        }
-        if (data && !channel && data.channelName) {
-          channel = typeof data.channelName === 'string' ? data.channelName : (data.channelName?.text || '');
-        }
-      }
-      
-      // Final validation
-      if (!title || !url) return null;
       
       return { title, url, channel, time, duration };
     } catch (e) {
-      console.error('[PrimeYT] Error extracting data from element:', e, element);
+      console.error('[PrimeYT] Error extracting data from element:', e);
       return null;
     }
   }
   
   function escapeHtml(text) {
+    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
   
   function destroyCustomList() {
-    const list = document.getElementById('primeyt-video-list');
+    const list = document.getElementById('primeyt-list-wrapper');
     if (list) list.remove();
+    
+    const oldList = document.getElementById('primeyt-video-list');
+    if (oldList) oldList.remove();
     
     document.body.classList.remove('primeyt-list-active');
     resetBuildState();
@@ -1011,47 +811,17 @@
     
     const message = document.createElement('div');
     message.id = 'primeyt-home-message';
-    message.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      color: #5c6370;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 14px;
-      z-index: 100;
-    `;
     message.innerHTML = `
-      <div style="font-size: 32px; margin-bottom: 16px; color: #abb2bf;">PrimeYT</div>
-      <div style="margin-bottom: 24px;">Mindful YouTube</div>
-      <div style="font-size: 12px; color: #4b5263;">
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">Space</kbd>
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">s</kbd>
-        Subscriptions
-        <br><br>
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">Space</kbd>
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">f</kbd>
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">f</kbd>
-        Search
-        <br><br>
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">Space</kbd>
-        <kbd style="background: #2c313a; padding: 4px 8px; border-radius: 4px; margin: 0 2px;">?</kbd>
-        Help
+      <div class="primeyt-home-title">PrimeYT</div>
+      <div class="primeyt-home-subtitle">Mindful YouTube</div>
+      <div class="primeyt-home-keys">
+        <div><kbd>Space</kbd> <kbd>s</kbd> Subscriptions</div>
+        <div><kbd>Space</kbd> <kbd>f</kbd> <kbd>f</kbd> Search</div>
+        <div><kbd>Space</kbd> <kbd>?</kbd> Help</div>
       </div>
     `;
     
-    // Wait for YouTube to load, then append
-    const checkInterval = setInterval(() => {
-      const content = document.querySelector('#content');
-      if (content) {
-        clearInterval(checkInterval);
-        document.body.appendChild(message);
-      }
-    }, 100);
-    
-    // Cleanup after 10 seconds
-    setTimeout(() => clearInterval(checkInterval), 10000);
+    document.body.appendChild(message);
   }
   
   function removeHomepageMessage() {
@@ -1065,6 +835,7 @@
   
   function updatePageState() {
     const path = window.location.pathname;
+    const pageType = updateBodyClasses();
     
     // Redirect shorts
     redirectShorts();
@@ -1077,7 +848,7 @@
       removeHomepageMessage();
     }
     
-    // Auto theater mode on watch page
+    // Handle watch page
     if (path === '/watch') {
       // Delay to ensure player is loaded
       setTimeout(enableTheaterMode, 500);
@@ -1085,9 +856,9 @@
       destroyCustomList();
     }
     
-    if (isFeedPage()) {
+    // Handle subscriptions page
+    if (isSubscriptionsPage()) {
       resetBuildState();
-      // Wait a bit longer for YouTube to render the feed
       scheduleBuildCustomVideoList(800);
     } else if (path !== '/watch' && path !== '/') {
       destroyCustomList();
@@ -1118,17 +889,16 @@
     
     // Watch for new videos being added to the feed (infinite scroll)
     const feedObserver = new MutationObserver((mutations) => {
-      if (!isFeedPage()) return;
+      if (!isSubscriptionsPage()) return;
       
       let shouldRebuild = false;
       for (const mutation of mutations) {
         if (mutation.addedNodes.length > 0) {
-          // Check if new video elements were added
           for (const node of mutation.addedNodes) {
             if (node.nodeType === Node.ELEMENT_NODE) {
               if (node.matches && (
                 node.matches('ytd-rich-item-renderer') ||
-                node.querySelector('ytd-rich-item-renderer')
+                node.querySelector?.('ytd-rich-item-renderer')
               )) {
                 shouldRebuild = true;
                 break;
@@ -1140,20 +910,12 @@
       }
       
       if (shouldRebuild) {
-        // Debounce rebuilds
         clearTimeout(buildTimeout);
         scheduleBuildCustomVideoList(1000);
       }
     });
     
-    // Observe the feed container for new videos
-    const feedContainer = document.querySelector('ytd-rich-grid-renderer, ytd-browse[page-subtype="subscriptions"]');
-    if (feedContainer) {
-      feedObserver.observe(feedContainer, { childList: true, subtree: true });
-    }
-    
-    // Also observe the whole page for when feed container appears
-    feedObserver.observe(document.body, { childList: true, subtree: false });
+    feedObserver.observe(document.body, { childList: true, subtree: true });
     
     // YouTube's custom navigation event
     window.addEventListener('yt-navigate-finish', updatePageState);
@@ -1188,8 +950,8 @@
     // Setup page detection
     setupPageDetection();
     
-    // Setup popup removal
-    setupPopupRemoval();
+    // Setup promo hiding (NOT popup removal!)
+    setupPromoHiding();
     
     // Create stats widget
     createStatsWidget();

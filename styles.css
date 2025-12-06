@@ -23,60 +23,23 @@
    ======================================== */
 
 html,
-body,
-ytd-app,
-#content,
-#page-manager,
-#page-manager.ytd-app,
-ytd-app[is-watch-page],
-ytd-app:not([is-watch-page]) {
+body {
   background-color: var(--bg-primary) !important;
   background: var(--bg-primary) !important;
   margin: 0 !important;
   padding: 0 !important;
-  border: none !important;
 }
 
-/* Force background on root elements */
-:root,
-:host {
+ytd-app,
+#content,
+#page-manager {
   background-color: var(--bg-primary) !important;
-}
-
-/* Override YouTube's background colors */
-ytd-browse,
-ytd-watch-flexy,
-ytd-search {
-  background-color: var(--bg-primary) !important;
-}
-
-/* Kill any top spacing */
-html, body {
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-  border-top: none !important;
-}
-
-ytd-app {
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-  --ytd-toolbar-height: 0px !important;
-  --ytd-masthead-height: 0px !important;
-}
-
-/* Target specific YouTube layout elements */
-#contentContainer,
-.ytd-app {
-  background-color: var(--bg-primary) !important;
-  padding-top: 0 !important;
-  margin-top: 0 !important;
 }
 
 /* ========================================
-   HIDE LEFT SIDEBAR / GUIDE
+   HIDE LEFT SIDEBAR / GUIDE (ALL PAGES)
    ======================================== */
 
-/* Main guide drawer */
 ytd-guide-renderer,
 ytd-mini-guide-renderer,
 #guide,
@@ -86,35 +49,28 @@ tp-yt-app-drawer {
   display: none !important;
 }
 
-/* Guide open state - remove margin */
-ytd-app[guide-persistent-and-visible] #content.ytd-app {
-  margin-left: 0 !important;
-}
-
+/* Remove sidebar margins */
+ytd-app[guide-persistent-and-visible] #content.ytd-app,
 ytd-app:not([guide-persistent-and-visible]) #content.ytd-app {
   margin-left: 0 !important;
 }
 
-/* Masthead start (hamburger + logo area) */
-#start.ytd-masthead {
-  display: none !important;
-}
-
 /* ========================================
-   HIDE ENTIRE MASTHEAD (TOP BAR)
+   HIDE MASTHEAD (TOP BAR) - ALL PAGES
    ======================================== */
 
-/* Hide the entire top bar */
 ytd-masthead,
 #masthead,
 #masthead-container,
-#container.ytd-masthead {
+#container.ytd-masthead,
+#start.ytd-masthead,
+ytd-masthead-skeleton,
+#masthead-skeleton {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
 }
 
-/* Remove the space reserved for masthead */
 ytd-app {
   --ytd-masthead-height: 0px !important;
   --ytd-toolbar-height: 0px !important;
@@ -122,59 +78,100 @@ ytd-app {
   padding-top: 0 !important;
 }
 
-#page-manager {
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-
+#page-manager,
 #page-manager.ytd-app {
   margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 
-/* Fix any content pushed down by masthead */
-ytd-browse,
-ytd-watch-flexy,
-ytd-search {
+/* ========================================
+   WATCH PAGE - MINIMAL, SAFE FIXES
+   Let YouTube handle player internals!
+   ======================================== */
+
+/* Basic background and spacing */
+body.primeyt-page-watch ytd-watch-flexy {
+  background-color: var(--bg-primary) !important;
   margin-top: 0 !important;
   padding-top: 0 !important;
 }
 
-/* Remove masthead spacer */
-#masthead-positioner,
-#masthead-positioner-height-offset {
-  display: none !important;
-  height: 0 !important;
+/* Hide the sidebar - use CSS variables YouTube respects */
+body.primeyt-page-watch ytd-watch-flexy {
+  --ytd-watch-flexy-sidebar-width: 0px !important;
+  --ytd-watch-flexy-sidebar-min-width: 0px !important;
 }
 
-/* Force all fixed/sticky elements at top to be hidden or dark */
-[style*="position: fixed"],
-[style*="position: sticky"] {
-  background-color: var(--bg-primary) !important;
-}
-
-/* Hide any remaining top bar elements */
-ytd-masthead-skeleton,
-#masthead-skeleton {
+/* Hide sidebar elements */
+body.primeyt-page-watch #secondary,
+body.primeyt-page-watch #related,
+body.primeyt-page-watch ytd-watch-next-secondary-results-renderer {
   display: none !important;
 }
 
-/* Force the entire viewport background */
-*::before,
-*::after {
-  background-color: transparent !important;
+/* Expand primary column to fill space */
+body.primeyt-page-watch #primary {
+  max-width: 100% !important;
+}
+
+body.primeyt-page-watch #columns {
+  max-width: 100% !important;
+}
+
+/* Hide comments */
+body.primeyt-page-watch ytd-comments,
+body.primeyt-page-watch #comments {
+  display: none !important;
+}
+
+/* Hide merch and promos */
+body.primeyt-page-watch ytd-merch-shelf-renderer,
+body.primeyt-page-watch ytd-donation-shelf-renderer,
+body.primeyt-page-watch #ticket-shelf,
+body.primeyt-page-watch #offer-module {
+  display: none !important;
+}
+
+/* Hide video description for minimal look */
+body.primeyt-page-watch #description-inline-expander,
+body.primeyt-page-watch ytd-text-inline-expander {
+  display: none !important;
+}
+
+/* Video info section styling */
+body.primeyt-page-watch #below {
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+  padding: 16px 24px !important;
+}
+
+/* CRITICAL: Ensure video elements are NEVER hidden on watch page */
+body.primeyt-page-watch #player,
+body.primeyt-page-watch #player-container,
+body.primeyt-page-watch #movie_player,
+body.primeyt-page-watch .html5-video-player,
+body.primeyt-page-watch .html5-video-container,
+body.primeyt-page-watch video.html5-main-video {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Ensure page content is visible on watch page */
+body.primeyt-page-watch #page-manager,
+body.primeyt-page-watch #content,
+body.primeyt-page-watch ytd-watch-flexy {
+  visibility: visible !important;
 }
 
 /* ========================================
    HIDE HOMEPAGE RECOMMENDATIONS
    ======================================== */
 
-/* Rich grid on homepage */
-ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
-ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer {
+body.primeyt-page-home ytd-rich-grid-renderer,
+body.primeyt-page-home #contents.ytd-rich-grid-renderer {
   display: none !important;
 }
 
-/* Category chips */
 ytd-feed-filter-chip-bar-renderer,
 #chips-wrapper,
 #header.ytd-rich-grid-renderer,
@@ -182,69 +179,18 @@ yt-chip-cloud-renderer {
   display: none !important;
 }
 
-/* "Breaking news" shelf */
-ytd-rich-shelf-renderer[is-show-more-hidden],
-ytd-rich-section-renderer:has([aria-label*="Breaking"]) {
-  display: none !important;
-}
-
 /* ========================================
    HIDE SHORTS EVERYWHERE
    ======================================== */
 
-/* Shorts shelf */
 ytd-rich-shelf-renderer[is-shorts],
 ytd-reel-shelf-renderer,
-ytd-rich-section-renderer:has(ytd-reel-shelf-renderer) {
-  display: none !important;
-}
-
-/* Shorts in search results */
-ytd-reel-item-renderer {
-  display: none !important;
-}
-
-/* Shorts tab on channel pages */
+ytd-rich-section-renderer:has(ytd-reel-shelf-renderer),
+ytd-reel-item-renderer,
 yt-tab-shape[tab-title="Shorts"],
-tp-yt-paper-tab:has([tab-title="Shorts"]) {
-  display: none !important;
-}
-
-/* Shorts badge */
-ytd-thumbnail-overlay-time-status-renderer[overlay-style="SHORTS"] {
-  display: none !important;
-}
-
-/* Hide shorts in mini-guide */
+ytd-thumbnail-overlay-time-status-renderer[overlay-style="SHORTS"],
 ytd-mini-guide-entry-renderer[aria-label="Shorts"] {
   display: none !important;
-}
-
-/* ========================================
-   HIDE COMMENTS SECTION
-   ======================================== */
-
-ytd-comments,
-#comments,
-ytd-comment-thread-renderer,
-ytd-comments-header-renderer {
-  display: none !important;
-}
-
-/* ========================================
-   HIDE SIDEBAR RECOMMENDATIONS (WATCH PAGE)
-   ======================================== */
-
-/* Secondary column (related videos) */
-#secondary.ytd-watch-flexy,
-#related,
-ytd-watch-next-secondary-results-renderer {
-  display: none !important;
-}
-
-/* Make primary column full width */
-#primary.ytd-watch-flexy {
-  max-width: 100% !important;
 }
 
 /* ========================================
@@ -262,11 +208,7 @@ ytd-watch-next-secondary-results-renderer {
 .ytp-cards-teaser,
 .ytp-cards-button,
 .iv-branding,
-.annotation {
-  display: none !important;
-}
-
-/* End screen */
+.annotation,
 .ytp-endscreen-content,
 .ytp-endscreen-previous,
 .ytp-endscreen-next {
@@ -274,10 +216,9 @@ ytd-watch-next-secondary-results-renderer {
 }
 
 /* ========================================
-   HIDE PREMIUM / UPSELLS
+   HIDE PREMIUM / UPSELLS / MERCH / PROMOS
    ======================================== */
 
-/* Premium upsell */
 ytd-mealbar-promo-renderer,
 ytd-background-promo-renderer,
 ytd-statement-banner-renderer,
@@ -286,129 +227,30 @@ ytd-brand-video-shelf-renderer,
 ytd-banner-promo-renderer,
 ytd-compact-promoted-video-renderer,
 ytd-promoted-sparkles-web-renderer,
-ytd-promoted-video-renderer {
+ytd-promoted-video-renderer,
+ytd-merch-shelf-renderer,
+ytd-donation-shelf-renderer,
+ytd-product-shelf-renderer,
+#ticket-shelf,
+#offer-module,
+ytd-info-panel-container-renderer,
+ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-structured-description"],
+ytd-clarification-renderer {
   display: none !important;
 }
 
-/* "Try YouTube Premium" */
-tp-yt-paper-dialog:has([aria-label*="Premium"]),
-ytd-popup-container:has([aria-label*="Premium"]) {
-  display: none !important;
-}
-
-/* ========================================
-   HIDE MINI PLAYER
-   ======================================== */
-
+/* Hide mini player */
 ytd-miniplayer,
 ytd-miniplayer-renderer {
   display: none !important;
 }
 
 /* ========================================
-   HIDE EXPLORE / TRENDING
-   ======================================== */
-
-ytd-guide-entry-renderer[is-primary]:has([title="Explore"]),
-ytd-guide-entry-renderer[is-primary]:has([title="Trending"]),
-ytd-guide-section-renderer:has([title="Explore"]) {
-  display: none !important;
-}
-
-/* ========================================
-   HIDE VIDEO INFO CLUTTER
-   ======================================== */
-
-/* Channel subscriber count on watch page */
-#owner-sub-count {
-  display: none !important;
-}
-
-/* Join button */
-#sponsor-button,
-ytd-button-renderer[button-renderer]:has([aria-label*="Join"]) {
-  display: none !important;
-}
-
-/* Thanks button */
-ytd-button-renderer:has([aria-label*="Thanks"]) {
-  display: none !important;
-}
-
-/* Clip button */
-ytd-button-renderer:has([aria-label*="Clip"]) {
-  display: none !important;
-}
-
-/* Download button (Premium) */
-ytd-download-button-renderer {
-  display: none !important;
-}
-
-/* ========================================
-   SIMPLIFY VIDEO INFO (KEEP ESSENTIAL)
-   ======================================== */
-
-/* Video title */
-h1.ytd-watch-metadata yt-formatted-string,
-#title.ytd-watch-metadata {
-  color: var(--text-primary) !important;
-  font-size: 18px !important;
-  font-weight: 500 !important;
-}
-
-/* Channel name */
-#channel-name a,
-ytd-channel-name a {
-  color: var(--text-primary) !important;
-}
-
-/* View count and date */
-#info-strings span,
-ytd-video-primary-info-renderer #info-text {
-  color: var(--text-secondary) !important;
-}
-
-/* ========================================
-   STYLE ACTION BUTTONS (LIKE, SHARE, ETC)
-   ======================================== */
-
-/* Button container */
-#actions.ytd-watch-metadata,
-#top-level-buttons-computed {
-  background-color: transparent !important;
-}
-
-/* Individual buttons */
-ytd-menu-renderer yt-button-shape button,
-ytd-segmented-like-dislike-button-renderer button,
-#segmented-like-button button,
-#segmented-dislike-button button {
-  background-color: var(--bg-tertiary) !important;
-  color: var(--text-primary) !important;
-}
-
-ytd-menu-renderer yt-button-shape button:hover,
-ytd-segmented-like-dislike-button-renderer button:hover {
-  background-color: var(--bg-hover) !important;
-}
-
-/* Like button active state */
-#segmented-like-button button[aria-pressed="true"] {
-  color: var(--accent-blue) !important;
-}
-
-/* ========================================
    VIDEO PLAYER STYLING
    ======================================== */
 
-/* Player background */
-#movie_player,
-.html5-video-player {
-  background-color: var(--bg-primary) !important;
-}
+/* Don't override player background - it can cover the video */
 
-/* Progress bar */
 .ytp-progress-bar-container .ytp-play-progress {
   background-color: var(--accent-red) !important;
 }
@@ -417,22 +259,14 @@ ytd-segmented-like-dislike-button-renderer button:hover {
   background-color: var(--bg-hover) !important;
 }
 
-/* Scrubber */
 .ytp-scrubber-button {
   background-color: var(--accent-red) !important;
 }
 
-/* Time display */
 .ytp-time-display {
   color: var(--text-primary) !important;
 }
 
-/* Volume slider */
-.ytp-volume-panel {
-  background-color: var(--bg-secondary) !important;
-}
-
-/* Settings menu */
 .ytp-settings-menu,
 .ytp-panel {
   background-color: var(--bg-secondary) !important;
@@ -444,434 +278,121 @@ ytd-segmented-like-dislike-button-renderer button:hover {
   color: var(--text-primary) !important;
 }
 
-/* Chapters */
-.ytp-chapter-container {
-  background-color: var(--bg-tertiary) !important;
-}
-
 /* ========================================
-   SUBSCRIPTIONS PAGE - MINIMAL TEXT LIST
+   WATCH PAGE - VIDEO INFO STYLING
    ======================================== */
-
-/* Hide the grid layout controls */
-body.primeyt-list-active ytd-feed-filter-chip-bar-renderer,
-body.primeyt-list-active #chips-wrapper,
-body.primeyt-list-active #chips,
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] #header,
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] .grid-subheader,
-body.primeyt-list-active #page-header,
-body.primeyt-list-active .page-header-view-model-wiz__page-header-headline-image {
-  display: none !important;
-}
-
-/* Convert grid to centered list */
-body.primeyt-list-active ytd-rich-grid-renderer {
-  display: block !important;
-  max-width: 700px !important;
-  margin: 40px auto !important;
-  padding: 0 20px !important;
-}
-
-body.primeyt-list-active #contents.ytd-rich-grid-renderer {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 0 !important;
-}
-
-body.primeyt-list-active ytd-rich-grid-row,
-body.primeyt-list-active #contents.ytd-rich-grid-row {
-  display: contents !important;
-}
-
-/* ========================================
-   VIDEO ITEMS - CLEAN TEXT ROWS
-   ======================================== */
-
-body.primeyt-list-active ytd-rich-item-renderer {
-  display: block !important;
-  width: 100% !important;
-  max-width: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  background: transparent !important;
-  contain: none !important;
-}
-
-body.primeyt-list-active ytd-rich-item-renderer #content,
-body.primeyt-list-active ytd-rich-item-renderer #dismissible,
-body.primeyt-list-active ytd-rich-item-renderer ytd-rich-grid-media,
-body.primeyt-list-active ytd-rich-grid-media,
-body.primeyt-list-active ytd-rich-grid-media #dismissible {
-  display: block !important;
-  width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* HIDE EVERYTHING THUMBNAIL RELATED */
-body.primeyt-list-active ytd-rich-item-renderer #thumbnail,
-body.primeyt-list-active ytd-rich-item-renderer a#thumbnail,
-body.primeyt-list-active ytd-rich-item-renderer ytd-thumbnail,
-body.primeyt-list-active ytd-rich-grid-media #thumbnail,
-body.primeyt-list-active ytd-rich-grid-media a#thumbnail,
-body.primeyt-list-active ytd-thumbnail,
-body.primeyt-list-active #thumbnail-container,
-body.primeyt-list-active yt-img-shadow,
-body.primeyt-list-active ytd-rich-item-renderer img,
-body.primeyt-list-active ytd-rich-grid-media img,
-body.primeyt-list-active #avatar-link,
-body.primeyt-list-active #avatar,
-body.primeyt-list-active #avatar-container,
-body.primeyt-list-active ytd-channel-thumbnail,
-body.primeyt-list-active #overlays,
-body.primeyt-list-active ytd-thumbnail-overlay-time-status-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-resume-playback-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-now-playing-renderer,
-body.primeyt-list-active .ytd-thumbnail-overlay-time-status-renderer,
-body.primeyt-list-active .ytd-thumbnail-overlay-resume-playback-renderer,
-body.primeyt-list-active .ytd-thumbnail-overlay-now-playing-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-hover-text-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-loading-preview-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-side-panel-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-toggle-button-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-image-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-badge-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-inline-unplayable-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-bottom-panel-renderer,
-body.primeyt-list-active ytd-thumbnail-overlay-endorsement-renderer {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  position: absolute !important;
-  left: -9999px !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-/* Ensure video container doesn't keep aspect ratio space */
-body.primeyt-list-active ytd-rich-item-renderer,
-body.primeyt-list-active ytd-rich-grid-media,
-body.primeyt-list-active ytd-rich-item-renderer > #content,
-body.primeyt-list-active ytd-rich-grid-media > #content,
-body.primeyt-list-active ytd-rich-item-renderer #dismissible,
-body.primeyt-list-active ytd-rich-grid-media #dismissible {
-  min-height: auto !important;
-  height: auto !important;
-  aspect-ratio: auto !important;
-  padding-bottom: 0 !important;
-  padding-top: 0 !important;
-}
-
-/* Force remove padding-bottom that creates aspect ratio space */
-body.primeyt-list-active ytd-rich-item-renderer::before,
-body.primeyt-list-active ytd-rich-grid-media::before,
-body.primeyt-list-active ytd-rich-item-renderer::after,
-body.primeyt-list-active ytd-rich-grid-media::after {
-  content: none !important;
-  padding-bottom: 0 !important;
-  display: none !important;
-}
-
-/* Remove any fixed height or min-height from grid items */
-body.primeyt-list-active ytd-rich-grid-row {
-  display: contents !important;
-  height: auto !important;
-  min-height: auto !important;
-}
-
-/* Collapse the rich grid media container completely */
-body.primeyt-list-active ytd-rich-grid-media {
-  display: block !important;
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-}
-
-/* THE ACTUAL TEXT ROW */
-body.primeyt-list-active ytd-rich-grid-media #details {
-  display: block !important;
-  padding: 14px 16px !important;
-  margin: 0 !important;
-  border-bottom: 1px solid var(--border-color) !important;
-  cursor: pointer !important;
-  transition: background-color 0.1s ease !important;
-}
-
-body.primeyt-list-active ytd-rich-grid-media #details:hover {
-  background-color: var(--bg-secondary) !important;
-}
 
 /* Video title */
-ytd-rich-grid-media #video-title-link,
-ytd-rich-grid-media #video-title,
-#video-title-link,
-#video-title {
+body.primeyt-page-watch h1.ytd-watch-metadata yt-formatted-string,
+body.primeyt-page-watch #title.ytd-watch-metadata,
+body.primeyt-page-watch .ytd-watch-metadata h1 {
   color: var(--text-primary) !important;
-  font-size: 15px !important;
+  font-size: 18px !important;
   font-weight: 500 !important;
-  line-height: 1.5 !important;
-  margin: 0 0 6px 0 !important;
-  display: block !important;
 }
 
-#video-title-link yt-formatted-string,
-#video-title yt-formatted-string {
-  display: block !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-/* Meta container - channel + views inline */
-ytd-rich-grid-media #meta,
-#meta.ytd-rich-grid-media {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  flex-wrap: wrap !important;
-}
-
-/* Channel name */
-#channel-name,
-ytd-channel-name {
-  display: inline !important;
-}
-
-#text.ytd-channel-name,
-ytd-channel-name a,
-#channel-name a {
-  color: var(--text-secondary) !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-}
-
-/* Metadata (views, time ago) */
-#metadata-line {
-  display: inline-flex !important;
-  align-items: center !important;
-  color: var(--text-muted) !important;
-  font-size: 12px !important;
-}
-
-#metadata-line span {
-  color: var(--text-muted) !important;
-}
-
-/* Hide clutter */
-ytd-rich-item-renderer #menu,
-ytd-rich-item-renderer ytd-menu-renderer,
-ytd-badge-supported-renderer,
-#badges,
-.badge-style-type-verified,
-ytd-rich-grid-media #avatar-link {
-  display: none !important;
-}
-
-/* Video renderer (search results) */
-ytd-video-renderer,
-ytd-grid-video-renderer {
-  display: block !important;
-  width: 100% !important;
-  max-width: 700px !important;
-  margin: 0 auto !important;
-  padding: 14px 16px !important;
-  border-bottom: 1px solid var(--border-color) !important;
-  background: transparent !important;
-}
-
-ytd-video-renderer:hover,
-ytd-grid-video-renderer:hover {
-  background-color: var(--bg-secondary) !important;
-}
-
-ytd-video-renderer ytd-thumbnail,
-ytd-video-renderer #thumbnail,
-ytd-video-renderer img,
-ytd-grid-video-renderer ytd-thumbnail,
-ytd-grid-video-renderer img {
-  display: none !important;
-}
-
-ytd-video-renderer #dismissible {
-  display: block !important;
-}
-
-ytd-video-renderer #meta {
-  margin: 0 !important;
-}
-
-/* ========================================
-   SEARCH RESULTS - SAME MINIMAL LIST
-   ======================================== */
-
-ytd-search #contents.ytd-section-list-renderer {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  max-width: 800px !important;
-  margin: 0 auto !important;
-  padding: 20px !important;
-}
-
-ytd-search ytd-video-renderer {
-  width: 100% !important;
-  max-width: 700px !important;
-}
-
-ytd-search ytd-video-renderer #thumbnail,
-ytd-search ytd-video-renderer ytd-thumbnail {
-  display: none !important;
-}
-
-ytd-search ytd-video-renderer #dismissible {
-  flex-direction: column !important;
-  align-items: flex-start !important;
-}
-
-ytd-search ytd-channel-renderer,
-ytd-search ytd-shelf-renderer,
-ytd-search ytd-horizontal-card-list-renderer,
-ytd-search ytd-movie-renderer {
-  display: none !important;
-}
-
-/* ========================================
-   WATCH LATER & PLAYLIST - MINIMAL LIST
-   ======================================== */
-
-ytd-playlist-video-list-renderer #contents {
-  max-width: 700px !important;
-  margin: 0 auto !important;
-}
-
-ytd-playlist-video-renderer {
-  padding: 12px 16px !important;
-  border-bottom: 1px solid var(--border-color) !important;
-}
-
-ytd-playlist-video-renderer:hover {
-  background-color: var(--bg-secondary) !important;
-}
-
-ytd-playlist-video-renderer #thumbnail,
-ytd-playlist-video-renderer ytd-thumbnail {
-  display: none !important;
-}
-
-ytd-playlist-video-renderer #meta,
-ytd-playlist-video-renderer #content {
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-}
-
-ytd-playlist-video-renderer #video-title {
+/* Channel info */
+body.primeyt-page-watch #channel-name a,
+body.primeyt-page-watch ytd-channel-name a,
+body.primeyt-page-watch #owner #text a {
   color: var(--text-primary) !important;
-  font-size: 15px !important;
 }
 
-ytd-playlist-video-renderer #byline-container {
+/* View count and date */
+body.primeyt-page-watch #info-strings span,
+body.primeyt-page-watch #info-container yt-formatted-string {
   color: var(--text-secondary) !important;
 }
 
-/* Hide drag handle and index number */
-ytd-playlist-video-renderer #index,
-ytd-playlist-video-renderer #reorder {
+/* Hide tons of clutter on watch page */
+body.primeyt-page-watch #owner-sub-count,
+body.primeyt-page-watch #sponsor-button,
+body.primeyt-page-watch ytd-button-renderer:has([aria-label*="Thanks"]),
+body.primeyt-page-watch ytd-button-renderer:has([aria-label*="Clip"]),
+body.primeyt-page-watch ytd-download-button-renderer,
+body.primeyt-page-watch #subscribe-button,
+body.primeyt-page-watch ytd-subscription-notification-toggle-button-renderer,
+body.primeyt-page-watch #notification-preference-button,
+body.primeyt-page-watch #channel-thumbnail,
+body.primeyt-page-watch #avatar,
+body.primeyt-page-watch ytd-video-description-infocards-section-renderer,
+body.primeyt-page-watch ytd-info-panel-content-renderer,
+body.primeyt-page-watch #clarify-box {
   display: none !important;
 }
 
-/* Hide playlist sidebar header clutter */
-ytd-playlist-sidebar-renderer #stats,
-ytd-playlist-sidebar-renderer #menu,
-ytd-playlist-sidebar-renderer #description,
-ytd-playlist-sidebar-renderer ytd-button-renderer {
-  display: none !important;
+/* Simplify owner row */
+body.primeyt-page-watch #owner {
+  padding: 8px 0 !important;
+}
+
+/* Action buttons styling */
+body.primeyt-page-watch #actions ytd-menu-renderer,
+body.primeyt-page-watch #top-level-buttons-computed {
+  display: flex !important;
+  gap: 8px !important;
+}
+
+body.primeyt-page-watch ytd-menu-renderer yt-button-shape button,
+body.primeyt-page-watch ytd-segmented-like-dislike-button-renderer button,
+body.primeyt-page-watch #segmented-like-button button,
+body.primeyt-page-watch #segmented-dislike-button button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-radius: 18px !important;
+}
+
+body.primeyt-page-watch #segmented-like-button button[aria-pressed="true"] {
+  color: var(--accent-blue) !important;
+}
+
+/* Watch metadata container */
+body.primeyt-page-watch #above-the-fold {
+  padding: 12px 0 !important;
+  border-bottom: 1px solid var(--border-color) !important;
 }
 
 /* ========================================
-   HIDE YOUTUBE'S FEED (only when our list exists)
+   CUSTOM VIDEO LIST (SUBSCRIPTIONS PAGE)
    ======================================== */
 
-/* Only hide when our custom list is present (class added by JS) */
-body.primeyt-list-active #primeyt-video-list ~ ytd-rich-grid-renderer,
-body.primeyt-list-active #primeyt-video-list ~ ytd-section-list-renderer,
-body.primeyt-list-active #primeyt-video-list ~ #contents.ytd-rich-grid-renderer,
-body.primeyt-list-active #primeyt-video-list ~ ytd-continuation-item-renderer {
-  display: none !important;
-}
-
-/* Hide the grid container when our list exists - use sibling selector for better compatibility */
-#primeyt-video-list ~ ytd-rich-grid-renderer,
-#primeyt-video-list ~ ytd-section-list-renderer,
-#primeyt-video-list ~ #contents.ytd-rich-grid-renderer {
-  display: none !important;
-}
-
-/* When our list exists, hide all rich item renderers in the grid */
-body:has(#primeyt-video-list) ytd-browse[page-subtype="subscriptions"] ytd-rich-grid-renderer,
-body:has(#primeyt-video-list) ytd-browse[page-subtype="subscriptions"] #contents.ytd-rich-grid-renderer,
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] ytd-rich-grid-renderer,
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] #contents.ytd-rich-grid-renderer {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  position: absolute !important;
-  left: -9999px !important;
-}
-
-/* Hide all rich item renderers when list is active */
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] ytd-rich-item-renderer {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Hide duration overlays that might be showing */
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] ytd-thumbnail-overlay-time-status-renderer,
-body.primeyt-list-active ytd-browse[page-subtype="subscriptions"] span#text.ytd-thumbnail-overlay-time-status-renderer {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-}
-
-/* Ensure our list is visible and formatted */
-#primeyt-video-list {
-  display: block !important;
-  visibility: visible !important;
-  max-width: 900px !important;
-  margin: 60px auto !important;
-  padding: 0 24px !important;
-  z-index: 1000 !important;
-  position: relative !important;
+/* Wrapper for the custom list */
+#primeyt-list-wrapper {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow-y: auto !important;
+  z-index: 99999 !important;
   background: var(--bg-primary) !important;
-  width: 100% !important;
-  min-height: 100px !important;
-  opacity: 1 !important;
+  padding-top: 40px !important;
 }
 
-/* Force visibility even if parent is hidden */
-ytd-browse[page-subtype="subscriptions"] #primeyt-video-list {
-  display: block !important;
-  visibility: visible !important;
+#primeyt-video-list {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
 .primeyt-video-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.1s ease;
 }
 
-.primeyt-video-row:hover {
-  background-color: var(--bg-secondary);
-}
-
 .primeyt-video-row:first-child {
   border-top: 1px solid var(--border-color);
+}
+
+.primeyt-video-row:hover {
+  background-color: var(--bg-secondary);
 }
 
 .primeyt-video-left {
@@ -883,7 +404,7 @@ ytd-browse[page-subtype="subscriptions"] #primeyt-video-list {
 .primeyt-video-right {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   flex-shrink: 0;
 }
 
@@ -899,17 +420,25 @@ ytd-browse[page-subtype="subscriptions"] #primeyt-video-list {
 .primeyt-video-channel {
   color: var(--text-secondary);
   font-size: 13px;
-  width: 180px;
+  width: 140px;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.primeyt-video-duration {
+  color: var(--accent-blue);
+  font-size: 12px;
+  width: 50px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .primeyt-video-date {
   color: var(--text-muted);
-  font-size: 13px;
-  width: 60px;
+  font-size: 12px;
+  width: 55px;
   text-align: right;
   white-space: nowrap;
 }
@@ -920,100 +449,134 @@ ytd-browse[page-subtype="subscriptions"] #primeyt-video-list {
   box-shadow: inset 3px 0 0 var(--accent-blue);
 }
 
-/* ========================================
-   FOCUS INDICATOR FOR OTHER LIST ITEMS
-   ======================================== */
-
-ytd-video-renderer.primeyt-focused,
-ytd-grid-video-renderer.primeyt-focused,
-ytd-playlist-video-renderer.primeyt-focused {
-  background-color: var(--bg-tertiary) !important;
-  border-left: 3px solid var(--accent-blue) !important;
+/* Hide YouTube's grid when our list is active - ONLY on subscriptions page */
+body.primeyt-list-active.primeyt-page-subscriptions ytd-browse,
+body.primeyt-list-active.primeyt-page-subscriptions ytd-rich-grid-renderer,
+body.primeyt-list-active.primeyt-page-subscriptions ytd-section-list-renderer,
+body.primeyt-list-active.primeyt-page-subscriptions #contents.ytd-rich-grid-renderer {
+  display: none !important;
 }
 
 /* ========================================
-   WATCH LATER / PLAYLIST STYLING
+   HOMEPAGE MESSAGE
    ======================================== */
 
-/* Playlist panel */
-ytd-playlist-panel-renderer {
-  background-color: var(--bg-secondary) !important;
-  border: 1px solid var(--border-color) !important;
+#primeyt-home-message {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  z-index: 100;
 }
 
-ytd-playlist-panel-video-renderer {
-  background-color: transparent !important;
+.primeyt-home-title {
+  font-size: 32px;
+  margin-bottom: 16px;
+  color: var(--text-primary);
 }
 
-ytd-playlist-panel-video-renderer:hover {
-  background-color: var(--bg-hover) !important;
+.primeyt-home-subtitle {
+  font-size: 14px;
+  margin-bottom: 24px;
+  color: var(--text-secondary);
 }
 
-/* Playlist sidebar on playlist pages */
-ytd-playlist-sidebar-renderer {
-  background-color: var(--bg-secondary) !important;
+.primeyt-home-keys {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 2.2;
 }
 
-/* ========================================
-   THEATER MODE ENHANCEMENTS
-   ======================================== */
-
-/* Force theater mode styles */
-ytd-watch-flexy[theater] #player-theater-container {
-  background-color: var(--bg-primary) !important;
-  max-height: calc(100vh - 56px) !important;
-}
-
-/* Center video in theater mode */
-ytd-watch-flexy[theater] #player-container {
-  display: flex !important;
-  justify-content: center !important;
-}
-
-/* Video info below player in theater */
-ytd-watch-flexy[theater] #below {
-  max-width: 1280px !important;
-  margin: 0 auto !important;
-  padding: 16px 24px !important;
-}
-
-/* ========================================
-   SCROLLBAR STYLING
-   ======================================== */
-
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--bg-hover);
+.primeyt-home-keys kbd {
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
   border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  margin: 0 2px;
+  color: var(--text-primary);
 }
 
 /* ========================================
-   PRIMEYT FOCUS INDICATOR
+   SEARCH RESULTS PAGE
    ======================================== */
 
-.primeyt-focused {
-  outline: 2px solid var(--focus-ring) !important;
-  outline-offset: 2px;
+body.primeyt-page-search ytd-search #contents.ytd-section-list-renderer {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-.primeyt-focused ytd-thumbnail {
-  transform: scale(1.02);
-  transition: transform 0.15s ease;
+body.primeyt-page-search ytd-video-renderer ytd-thumbnail,
+body.primeyt-page-search ytd-video-renderer #thumbnail {
+  display: none !important;
+}
+
+body.primeyt-page-search ytd-video-renderer #dismissible {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+body.primeyt-page-search ytd-video-renderer {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+body.primeyt-page-search ytd-video-renderer:hover {
+  background-color: var(--bg-secondary);
+}
+
+body.primeyt-page-search ytd-channel-renderer,
+body.primeyt-page-search ytd-shelf-renderer,
+body.primeyt-page-search ytd-horizontal-card-list-renderer {
+  display: none !important;
 }
 
 /* ========================================
-   PRIMEYT STATS WIDGET
+   PLAYLIST PAGES
+   ======================================== */
+
+ytd-playlist-video-list-renderer #contents {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+ytd-playlist-video-renderer {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+ytd-playlist-video-renderer:hover {
+  background-color: var(--bg-secondary);
+}
+
+ytd-playlist-video-renderer #thumbnail,
+ytd-playlist-video-renderer ytd-thumbnail {
+  display: none !important;
+}
+
+ytd-playlist-video-renderer #meta,
+ytd-playlist-video-renderer #content {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+ytd-playlist-video-renderer #video-title {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+ytd-playlist-video-renderer #byline-container {
+  color: var(--text-secondary);
+}
+
+ytd-playlist-video-renderer #index,
+ytd-playlist-video-renderer #reorder {
+  display: none !important;
+}
+
+/* ========================================
+   STATS WIDGET
    ======================================== */
 
 #primeyt-stats {
@@ -1029,6 +592,11 @@ ytd-watch-flexy[theater] #below {
   color: var(--text-secondary);
   z-index: 9999;
   line-height: 2;
+}
+
+/* Hide stats widget on watch page - don't cover the video */
+body.primeyt-page-watch #primeyt-stats {
+  display: none !important;
 }
 
 #primeyt-stats .stat-row {
@@ -1073,19 +641,20 @@ ytd-watch-flexy[theater] #below {
 
 #primeyt-leader {
   position: fixed;
-  bottom: 50%;
+  bottom: 40px;
   left: 50%;
-  transform: translate(-50%, 50%);
+  transform: translateX(-50%);
   background-color: var(--bg-secondary);
-  border: 2px solid var(--accent-purple);
-  border-radius: 8px;
-  padding: 12px 20px;
+  border: 1px solid var(--accent-purple);
+  border-radius: 6px;
+  padding: 8px 16px;
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  font-size: 18px;
+  font-size: 14px;
   color: var(--accent-purple);
   z-index: 10000;
   display: none;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0.95;
 }
 
 #primeyt-leader.active {
@@ -1095,10 +664,11 @@ ytd-watch-flexy[theater] #below {
 #primeyt-leader .keys {
   color: var(--text-primary);
   font-weight: bold;
+  margin-left: 6px;
 }
 
 /* ========================================
-   PRIMEYT DIALOGS (Search)
+   DIALOGS (Search, Help)
    ======================================== */
 
 .primeyt-overlay {
@@ -1108,7 +678,7 @@ ytd-watch-flexy[theater] #below {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.8);
-  z-index: 10001;
+  z-index: 100001;
   display: none;
   align-items: flex-start;
   justify-content: center;
@@ -1153,10 +723,7 @@ ytd-watch-flexy[theater] #below {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-/* ========================================
-   HELP DIALOG
-   ======================================== */
-
+/* Help Dialog */
 .primeyt-help-dialog {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -1233,24 +800,6 @@ ytd-watch-flexy[theater] #below {
 }
 
 /* ========================================
-   HOMEPAGE MINIMAL STATE
-   ======================================== */
-
-/* When on homepage, show a minimal centered message */
-ytd-browse[page-subtype="home"] #contents {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 50vh !important;
-}
-
-/* Hide the actual grid content */
-ytd-browse[page-subtype="home"] ytd-rich-grid-renderer #contents {
-  display: none !important;
-}
-
-/* ========================================
    TOAST NOTIFICATIONS
    ======================================== */
 
@@ -1284,73 +833,79 @@ ytd-browse[page-subtype="home"] ytd-rich-grid-renderer #contents {
 }
 
 /* ========================================
-   CHANNEL PAGE CLEANUP
+   SCROLLBAR STYLING
    ======================================== */
 
-/* Hide channel banner for cleaner look */
-#channel-header-container {
-  background-color: var(--bg-secondary) !important;
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-/* Hide featured channels shelf */
-ytd-shelf-renderer:has([title*="Featured"]),
-ytd-shelf-renderer:has([title*="channels"]) {
-  display: none !important;
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
 }
 
-/* Hide community tab content */
-ytd-browse[page-subtype="channels"] ytd-item-section-renderer:has(ytd-backstage-post-thread-renderer) {
-  display: none !important;
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }
 
 /* ========================================
-   HIDE ALL YOUTUBE POPUPS, SURVEYS, NOTIFICATIONS
+   FOCUS INDICATOR
    ======================================== */
 
-/* Survey popups */
-ytd-popup-container,
+.primeyt-focused {
+  outline: 2px solid var(--focus-ring) !important;
+  outline-offset: 2px;
+}
+
+/* ========================================
+   HIDE SURVEYS/PROMOS (Scoped - NOT popup containers!)
+   ======================================== */
+
+/* These are actual survey/promo elements - safe to hide */
 ytd-single-option-survey-renderer,
 ytd-multi-option-survey-renderer,
 ytd-enforcement-message-view-model,
-tp-yt-paper-dialog,
-ytd-mealbar-promo-renderer,
 ytd-consent-bump-v2-lightbox,
-iron-overlay-backdrop {
-  display: none !important;
-}
-
-/* Notification popups */
-ytd-notification-renderer,
-ytd-simple-menu-header-renderer,
-#notification-permission-prompt,
-.ytd-notification-multi-action-renderer {
-  display: none !important;
-}
-
-/* Cookie consent and other overlays */
-ytd-consent-bump-lightbox,
 #consent-bump,
-.consent-bump-v2-lightbox {
-  display: none !important;
-}
-
-/* Any fixed/modal overlays from YouTube */
-tp-yt-iron-overlay-backdrop,
-.opened,
-[aria-modal="true"]:not(.primeyt-overlay):not(.primeyt-dialog):not(.primeyt-help-dialog) {
-  display: none !important;
-}
-
-/* YouTube's feedback buttons and surveys */
+ytd-mealbar-promo-renderer,
+ytd-background-promo-renderer,
+ytd-statement-banner-renderer,
+ytd-brand-video-shelf-renderer,
+#masthead-ad,
 #yt-survey-container,
-.ytd-mealbar-promo-renderer,
 ytd-survey-view-model,
 yt-survey-view-model {
   display: none !important;
 }
 
-/* Hide "Send feedback" and similar buttons */
-#feedback,
-ytd-button-renderer[button-renderer]:has([aria-label*="feedback" i]) {
+/* NOTE: We do NOT hide these globally because the watch page player needs them:
+   - ytd-popup-container (player menus)
+   - tp-yt-paper-dialog (settings dialogs)
+   - iron-overlay-backdrop (overlays)
+   - tp-yt-iron-overlay-backdrop (overlays)
+*/
+
+/* Only hide popup containers on NON-watch pages where they're not needed */
+body:not(.primeyt-page-watch) ytd-popup-container:has(ytd-single-option-survey-renderer),
+body:not(.primeyt-page-watch) ytd-popup-container:has(ytd-multi-option-survey-renderer),
+body:not(.primeyt-page-watch) tp-yt-paper-dialog:has([aria-label*="Premium"]) {
+  display: none !important;
+}
+
+/* ========================================
+   CHANNEL PAGE CLEANUP
+   ======================================== */
+
+body.primeyt-page-channel #channel-header-container {
+  background-color: var(--bg-secondary) !important;
+}
+
+body.primeyt-page-channel ytd-shelf-renderer:has([title*="Featured"]),
+body.primeyt-page-channel ytd-shelf-renderer:has([title*="channels"]) {
   display: none !important;
 }
