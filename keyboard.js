@@ -45,7 +45,7 @@ const PrimeYTKeyboard = (function() {
       
       // Navigate filter matches (like Vim n/N)
       'n': () => !isOnWatchPage() ? navigateFilterMatches(1) : null,
-      'N': () => !isOnWatchPage() ? navigateFilterMatches(-1) : null,
+      'N': () => openNewYouTubeTab(), // Shift+N opens fresh YouTube in new tab
       
       // Actions
       'w': () => addToWatchLater(),
@@ -1896,6 +1896,11 @@ const PrimeYTKeyboard = (function() {
   // Navigation Actions
   // ==========================================
   
+  function openNewYouTubeTab() {
+    window.open('https://www.youtube.com/', '_blank');
+    return true;
+  }
+  
   function goBack() {
     window.history.back();
     return true;
@@ -1987,6 +1992,7 @@ const PrimeYTKeyboard = (function() {
           <div class="primeyt-help-section">
             <div class="primeyt-help-title">Navigation</div>
             <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>H</kbd> <span>Go back (any page)</span></div>
+            <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>N</kbd> <span>New YouTube tab</span></div>
             <div class="primeyt-help-row"><kbd>j</kbd> / <kbd>k</kbd> <span>Next/Prev video</span></div>
             <div class="primeyt-help-row"><kbd>5</kbd><kbd>j</kbd> <span>Down 5 videos</span></div>
             <div class="primeyt-help-row"><kbd>/</kbd> <span>Filter videos</span></div>

@@ -564,6 +564,90 @@ body.primeyt-page-watch .html5-video-player .ytp-chrome-top {
   box-shadow: inset 3px 0 0 var(--accent-blue);
 }
 
+/* ========================================
+   HIDE YOUTUBE CONTENT IMMEDIATELY (FOUC Prevention)
+   These rules use YouTube's own element attributes so they 
+   work BEFORE our JS runs, preventing flash of thumbnails
+   ======================================== */
+
+/* Hide subscriptions grid IMMEDIATELY - YouTube adds page-subtype early */
+ytd-browse[page-subtype="subscriptions"] ytd-rich-grid-renderer,
+ytd-browse[page-subtype="subscriptions"] #contents.ytd-rich-grid-renderer,
+ytd-browse[page-subtype="subscriptions"] ytd-rich-item-renderer,
+ytd-browse[page-subtype="subscriptions"] #primary > ytd-rich-grid-renderer,
+ytd-browse[page-subtype="subscriptions"] #primary,
+ytd-browse[page-subtype="subscriptions"] ytd-two-column-browse-results-renderer {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide search results IMMEDIATELY */
+ytd-search ytd-two-column-search-results-renderer,
+ytd-search ytd-section-list-renderer,
+ytd-search #contents.ytd-section-list-renderer,
+ytd-search ytd-item-section-renderer,
+ytd-search #primary,
+ytd-search #secondary {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide playlist content IMMEDIATELY - hide EVERYTHING inside playlist pages */
+ytd-browse[page-subtype="playlist"] > *,
+ytd-browse[page-subtype="playlist"] #columns,
+ytd-browse[page-subtype="playlist"] #primary,
+ytd-browse[page-subtype="playlist"] #secondary,
+ytd-browse[page-subtype="playlist"] ytd-playlist-sidebar-renderer,
+ytd-browse[page-subtype="playlist"] ytd-playlist-header-renderer,
+ytd-browse[page-subtype="playlist"] ytd-two-column-browse-results-renderer,
+ytd-browse[page-subtype="playlist"] ytd-playlist-video-list-renderer,
+ytd-browse[page-subtype="playlist"] .immersive-header-container,
+ytd-browse[page-subtype="playlist"] #page-header,
+ytd-browse[page-subtype="playlist"] #header,
+ytd-browse[page-subtype="playlist"] #alerts {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Fallback: Hide playlist elements wherever they appear (for Watch Later, etc) */
+ytd-playlist-sidebar-renderer,
+ytd-playlist-header-renderer,
+ytd-browse:has(ytd-playlist-sidebar-renderer) #columns,
+ytd-browse:has(ytd-playlist-sidebar-renderer) #primary,
+ytd-browse:has(ytd-playlist-sidebar-renderer) #secondary,
+ytd-browse:has(ytd-playlist-video-list-renderer) > * {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* But show them back when our list is active (handled by primeyt-list-active rules below) */
+
+/* Loading indicator shown while waiting for custom list */
+ytd-browse[page-subtype="subscriptions"]::before,
+ytd-search::before,
+ytd-browse[page-subtype="playlist"]::before {
+  content: 'Loading...';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  z-index: 100;
+}
+
+/* Hide loading indicator once our list is active */
+body.primeyt-list-active ytd-browse[page-subtype="subscriptions"]::before,
+body.primeyt-list-active ytd-search::before,
+body.primeyt-list-active ytd-browse[page-subtype="playlist"]::before {
+  display: none !important;
+}
+
 /* Hide YouTube's grid when our list is active - subscriptions and search pages */
 body.primeyt-list-active.primeyt-page-subscriptions ytd-browse,
 body.primeyt-list-active.primeyt-page-subscriptions ytd-rich-grid-renderer,
