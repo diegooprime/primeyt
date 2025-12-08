@@ -5,8 +5,7 @@ My custom YouTube client. Vim keybinds, One Dark theme, no algorithmic noise.
 YouTube is designed to keep you watching. I want to watch what I chose to watch, then leave. This strips it down to subscriptions, watch later, and keyboard control.
 
 ## Demo
-
-[screenshot/gif]
+https://x.com/diegooprime/status/1997922005232881807
 
 ## How it works
 
