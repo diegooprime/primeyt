@@ -38,7 +38,6 @@ const PrimeYTKeyboard = (function() {
       
       // Navigation (non-watch pages)
       'g': () => { scrollToTop(); return true; },
-      'G': () => { scrollToBottom(); return true; },
       'Enter': (e) => openFocusedVideo(e && e.shiftKey),
       'Escape': () => handleEscape(),
       
@@ -328,9 +327,13 @@ const PrimeYTKeyboard = (function() {
     // Check for custom PrimeYT list first
     const customRows = document.querySelectorAll('.primeyt-video-row');
     if (customRows.length > 0) {
-      return Array.from(customRows);
+      // Filter out hidden videos (from filter search)
+      return Array.from(customRows).filter(row => {
+        return !row.classList.contains('primeyt-filter-hidden') && 
+               row.style.display !== 'none';
+      });
     }
-    
+
     // Fallback to YouTube's elements
     const selectors = [
       'ytd-rich-item-renderer:has(#video-title-link)', // Home/Subscriptions
@@ -339,7 +342,7 @@ const PrimeYTKeyboard = (function() {
       'ytd-playlist-video-renderer', // Playlist items
       'ytd-playlist-panel-video-renderer' // Watch page playlist
     ];
-    
+
     return Array.from(document.querySelectorAll(selectors.join(', ')))
       .filter(el => el.offsetParent !== null); // Only visible elements
   }
@@ -353,25 +356,33 @@ const PrimeYTKeyboard = (function() {
       state.focusedVideo.classList.remove('primeyt-focused');
     }
     
-    // Calculate new index
-    if (state.focusedIndex === -1) {
-      state.focusedIndex = direction > 0 ? 0 : videos.length - 1;
+    // Find current position in visible videos array
+    let currentVisibleIndex = -1;
+    if (state.focusedVideo) {
+      currentVisibleIndex = videos.indexOf(state.focusedVideo);
+    }
+    
+    // Calculate new index in visible videos
+    let newVisibleIndex;
+    if (currentVisibleIndex === -1) {
+      newVisibleIndex = direction > 0 ? 0 : videos.length - 1;
     } else {
-      state.focusedIndex += direction;
+      newVisibleIndex = currentVisibleIndex + direction;
     }
     
     // Clamp to bounds
-    state.focusedIndex = Math.max(0, Math.min(state.focusedIndex, videos.length - 1));
+    newVisibleIndex = Math.max(0, Math.min(newVisibleIndex, videos.length - 1));
     
     // Focus the video
-    const video = videos[state.focusedIndex];
+    const video = videos[newVisibleIndex];
     if (video) {
       state.focusedVideo = video;
+      state.focusedIndex = parseInt(video.dataset?.index, 10) || newVisibleIndex;
       video.classList.add('primeyt-focused');
       video.scrollIntoView({ behavior: 'smooth', block: 'center' });
       
-      // Update relative line numbers
-      updateRelativeLineNumbers(state.focusedIndex);
+      // Update relative line numbers based on focused row
+      updateRelativeLineNumbers(video);
     }
     
     return true;
@@ -382,10 +393,10 @@ const PrimeYTKeyboard = (function() {
       state.focusedVideo.classList.remove('primeyt-focused');
       state.focusedVideo = null;
       state.focusedIndex = -1;
-      
-      // Reset to absolute line numbers
-      updateRelativeLineNumbers(-1);
     }
+    
+    // Reset to absolute line numbers (no focus)
+    updateRelativeLineNumbers(null);
   }
   
   function openFocusedVideo(newTab = false) {
@@ -569,6 +580,9 @@ const PrimeYTKeyboard = (function() {
     
     const countEl = document.getElementById('primeyt-filter-count');
     if (countEl) countEl.textContent = '';
+    
+    // Recalculate line numbers for all visible videos
+    updateRelativeLineNumbers(state.focusedVideo);
   }
   
   function filterVideoList(query) {
@@ -598,20 +612,31 @@ const PrimeYTKeyboard = (function() {
         matchCount++;
         if (!firstMatch) firstMatch = row;
       } else {
-        row.classList.remove('primeyt-filter-match', 'primeyt-filter-current');
+        row.classList.remove('primeyt-filter-match', 'primeyt-filter-current', 'primeyt-focused');
         row.classList.add('primeyt-filter-hidden');
         row.style.display = 'none';
       }
     });
     
-    // Highlight first match
+    // Highlight and focus first match
     if (firstMatch) {
       document.querySelectorAll('.primeyt-filter-current').forEach(el => {
         el.classList.remove('primeyt-filter-current');
       });
       firstMatch.classList.add('primeyt-filter-current');
       firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Also set as focused for j/k navigation
+      if (state.focusedVideo) {
+        state.focusedVideo.classList.remove('primeyt-focused');
+      }
+      state.focusedVideo = firstMatch;
+      state.focusedIndex = parseInt(firstMatch.dataset.index, 10) || 0;
+      firstMatch.classList.add('primeyt-focused');
     }
+    
+    // Recalculate relative line numbers for visible videos
+    updateRelativeLineNumbers(firstMatch);
     
     updateFilterCount(matchCount, rows.length);
   }
@@ -628,27 +653,40 @@ const PrimeYTKeyboard = (function() {
   }
   
   function navigateFilterMatches(direction) {
-    const matches = Array.from(document.querySelectorAll('.primeyt-video-row.primeyt-filter-match'));
-    if (matches.length === 0) return null; // No matches, don't consume the key
+    // Get visible videos (either filter matches if filtering, or all visible)
+    let visibleVideos = Array.from(document.querySelectorAll('.primeyt-video-row.primeyt-filter-match'));
     
-    const currentIndex = matches.findIndex(m => m.classList.contains('primeyt-filter-current'));
-    let newIndex;
-    
-    if (currentIndex === -1) {
-      newIndex = direction > 0 ? 0 : matches.length - 1;
-    } else {
-      newIndex = currentIndex + direction;
-      if (newIndex < 0) newIndex = matches.length - 1;
-      if (newIndex >= matches.length) newIndex = 0;
+    // If no filter matches, use all visible videos
+    if (visibleVideos.length === 0) {
+      visibleVideos = Array.from(document.querySelectorAll('.primeyt-video-row')).filter(row => {
+        return !row.classList.contains('primeyt-filter-hidden') && 
+               row.style.display !== 'none';
+      });
     }
     
-    // Update current
-    matches.forEach(m => m.classList.remove('primeyt-filter-current'));
-    matches[newIndex].classList.add('primeyt-filter-current');
-    matches[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (visibleVideos.length === 0) return null; // No videos, don't consume the key
+    
+    // Find current position
+    const currentIndex = visibleVideos.findIndex(m => 
+      m.classList.contains('primeyt-filter-current') || m.classList.contains('primeyt-focused')
+    );
+    
+    let newIndex;
+    if (currentIndex === -1) {
+      newIndex = direction > 0 ? 0 : visibleVideos.length - 1;
+    } else {
+      newIndex = currentIndex + direction;
+      if (newIndex < 0) newIndex = visibleVideos.length - 1;
+      if (newIndex >= visibleVideos.length) newIndex = 0;
+    }
+    
+    // Update current marker
+    visibleVideos.forEach(m => m.classList.remove('primeyt-filter-current'));
+    visibleVideos[newIndex].classList.add('primeyt-filter-current');
+    visibleVideos[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
     
     // Also focus this video for Enter to open it
-    focusVideoRow(matches[newIndex]);
+    focusVideoRow(visibleVideos[newIndex]);
     
     return true;
   }
@@ -664,30 +702,52 @@ const PrimeYTKeyboard = (function() {
     state.focusedVideo = row;
     state.focusedIndex = parseInt(row.dataset.index, 10) || 0;
     
-    // Update relative line numbers
-    updateRelativeLineNumbers(state.focusedIndex);
+    // Update relative line numbers based on focused row
+    updateRelativeLineNumbers(row);
   }
   
   // ==========================================
   // Relative Line Numbers (Vim-style)
   // ==========================================
   
-  function updateRelativeLineNumbers(currentIndex = -1) {
-    const lineNumbers = document.querySelectorAll('.primeyt-line-number');
+  function updateRelativeLineNumbers(focusedRow = null) {
+    const allRows = document.querySelectorAll('.primeyt-video-row');
     
-    lineNumbers.forEach(el => {
-      const index = parseInt(el.dataset.index, 10);
+    // Get only visible rows (not filtered out)
+    const visibleRows = Array.from(allRows).filter(row => {
+      return !row.classList.contains('primeyt-filter-hidden') && 
+             row.style.display !== 'none' &&
+             row.offsetParent !== null;
+    });
+    
+    // Find the index of the focused row in visible rows
+    let focusedVisibleIndex = -1;
+    if (focusedRow) {
+      focusedVisibleIndex = visibleRows.indexOf(focusedRow);
+    }
+    
+    // Update all line numbers
+    allRows.forEach(row => {
+      const lineNumEl = row.querySelector('.primeyt-line-number');
+      if (!lineNumEl) return;
       
-      if (currentIndex === -1) {
-        // No focus - show absolute line numbers
-        el.textContent = index;
-      } else if (index === currentIndex) {
-        // Current line - show absolute number (like Vim with relativenumber + number)
-        el.textContent = index;
+      // If row is hidden, skip
+      if (row.classList.contains('primeyt-filter-hidden') || row.style.display === 'none') {
+        return;
+      }
+      
+      const visibleIndex = visibleRows.indexOf(row);
+      
+      if (focusedVisibleIndex === -1) {
+        // No focus - show position in visible list
+        lineNumEl.textContent = visibleIndex;
+      } else if (visibleIndex === focusedVisibleIndex) {
+        // Current line - show its visible index
+        lineNumEl.textContent = visibleIndex;
       } else {
-        // Show relative distance
-        const distance = Math.abs(index - currentIndex);
-        el.textContent = distance;
+        // Show relative distance in visible list
+        const distance = Math.abs(visibleIndex - focusedVisibleIndex);
+        lineNumEl.textContent = distance;
       }
     });
   }
@@ -1784,7 +1844,6 @@ const PrimeYTKeyboard = (function() {
             <div class="primeyt-help-row"><kbd>Enter</kbd> <span>Open video</span></div>
             <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>Enter</kbd> <span>Open in new tab</span></div>
             <div class="primeyt-help-row"><kbd>g</kbd> <span>Scroll to top</span></div>
-            <div class="primeyt-help-row"><kbd>G</kbd> <span>Scroll to bottom</span></div>
             <div class="primeyt-help-row"><kbd>Esc</kbd> <span>Clear/Close</span></div>
           </div>
           <div class="primeyt-help-section">

@@ -1013,6 +1013,48 @@ body.primeyt-page-watch #primeyt-stats {
 }
 
 /* ========================================
+   VIDEO TIME STATS (TOP RIGHT)
+   ======================================== */
+
+#primeyt-video-time-stats {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 13px;
+  background: rgba(33, 37, 43, 0.85);
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  pointer-events: none;
+}
+
+#primeyt-elapsed {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.primeyt-time-sep {
+  color: var(--text-muted);
+}
+
+#primeyt-remaining {
+  color: var(--text-secondary);
+}
+
+#primeyt-percent {
+  color: var(--accent-green);
+  font-weight: 600;
+  margin-left: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-color);
+}
+
+/* ========================================
    AUTO-HIDE CURSOR (ENTIRE PAGE)
    ======================================== */
 

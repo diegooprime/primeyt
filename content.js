@@ -244,6 +244,10 @@
     const existing = document.getElementById('primeyt-progress-container');
     if (existing) existing.remove();
     
+    // Remove existing time stats if present
+    const existingStats = document.getElementById('primeyt-video-time-stats');
+    if (existingStats) existingStats.remove();
+    
     const container = document.createElement('div');
     container.id = 'primeyt-progress-container';
     container.innerHTML = `
@@ -254,6 +258,17 @@
       </div>
       <div id="primeyt-progress-time"></div>
     `;
+    
+    // Create time stats display (top right)
+    const timeStats = document.createElement('div');
+    timeStats.id = 'primeyt-video-time-stats';
+    timeStats.innerHTML = `
+      <span id="primeyt-elapsed">0:00</span>
+      <span class="primeyt-time-sep">/</span>
+      <span id="primeyt-remaining">0:00</span>
+      <span id="primeyt-percent">0%</span>
+    `;
+    document.body.appendChild(timeStats);
     
     document.body.appendChild(container);
     progressBarCreated = true;
@@ -337,6 +352,13 @@
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
   
+  function formatTimeMinutes(seconds) {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const totalMins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${totalMins}:${secs.toString().padStart(2, '0')}`;
+  }
+  
   function updateProgressBar() {
     if (!document.body.classList.contains('primeyt-page-watch')) {
       progressAnimationFrame = null;
@@ -358,6 +380,21 @@
         const bufferedPercent = (bufferedEnd / video.duration) * 100;
         bufferedBar.style.width = `${bufferedPercent}%`;
       }
+      
+      // Update time stats display
+      const elapsedEl = document.getElementById('primeyt-elapsed');
+      const remainingEl = document.getElementById('primeyt-remaining');
+      const percentEl = document.getElementById('primeyt-percent');
+      
+      if (elapsedEl && remainingEl && percentEl) {
+        const elapsed = video.currentTime;
+        const remaining = video.duration - video.currentTime;
+        const percent = Math.round(playedPercent);
+        
+        elapsedEl.textContent = formatTimeMinutes(elapsed);
+        remainingEl.textContent = formatTimeMinutes(remaining);
+        percentEl.textContent = `${percent}%`;
+      }
     }
     
     progressAnimationFrame = requestAnimationFrame(updateProgressBar);
@@ -366,6 +403,8 @@
   function destroyProgressBar() {
     const container = document.getElementById('primeyt-progress-container');
     if (container) container.remove();
+    const timeStats = document.getElementById('primeyt-video-time-stats');
+    if (timeStats) timeStats.remove();
     progressBarCreated = false;
     if (progressAnimationFrame) {
       cancelAnimationFrame(progressAnimationFrame);
@@ -563,6 +602,8 @@
   let customListBuilt = false;
   let buildAttempts = 0;
   let buildTimeout = null;
+  let durationCache = new Map(); // videoId -> duration
+  let durationUpdateInterval = null;
 
   function isFeedPage() {
     const path = window.location.pathname;
@@ -621,6 +662,39 @@
     }
     
     return `${totalMinutes} min`;
+  }
+
+  function getNestedValue(obj, path) {
+    const keys = path.split('.');
+    let value = obj;
+    for (const key of keys) {
+      if (value == null) return undefined;
+      value = value[key];
+    }
+    return value;
+  }
+
+  function parseDurationFromLabel(label) {
+    if (!label) return '';
+    
+    // "X hours, Y minutes, Z seconds" or variations
+    let hours = 0, mins = 0, secs = 0;
+    
+    const hourMatch = label.match(/(\d+)\s*hours?/i);
+    const minMatch = label.match(/(\d+)\s*minutes?/i);
+    const secMatch = label.match(/(\d+)\s*seconds?/i);
+    
+    if (hourMatch) hours = parseInt(hourMatch[1], 10);
+    if (minMatch) mins = parseInt(minMatch[1], 10);
+    if (secMatch) secs = parseInt(secMatch[1], 10);
+    
+    // Need at least minutes or hours to form a valid duration
+    if (hours === 0 && mins === 0 && secs === 0) return '';
+    
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
   function formatRelativeDate(timeStr) {
@@ -736,8 +810,17 @@
         cleanTitle = words.slice(0, 6).join(' ') + '...';
       }
       
+      // Try to get duration from cache first, then from video data
+      let duration = video.duration;
+      if (!duration && videoId && durationCache.has(videoId)) {
+        duration = durationCache.get(videoId);
+      }
+      if (duration && videoId) {
+        durationCache.set(videoId, duration);
+      }
+      
       // Format duration to minutes and get upload date
-      const durationMin = formatDurationToMinutes(video.duration);
+      const durationMin = formatDurationToMinutes(duration);
       const dateStr = formatRelativeDate(video.time);
       
       // Watched indicator (checkmark)
@@ -781,6 +864,9 @@
       duration: v.duration || '(none)',
       time: v.time || '(none)'
     })));
+    
+    // Start polling for missing durations
+    startDurationUpdater();
   }
 
   function collectVideosFromData() {
@@ -861,11 +947,37 @@
       video.relativeDateText?.accessibility?.accessibilityData?.label ||
       '';
 
-    const duration = video.lengthText?.simpleText ||
-      (video.lengthText?.runs || []).map(run => run.text).join('').trim() ||
-      video.thumbnailOverlays?.find(o => o.thumbnailOverlayTimeStatusRenderer)
-        ?.thumbnailOverlayTimeStatusRenderer?.text?.simpleText ||
-      '';
+    // Try multiple paths for duration
+    let duration = '';
+    
+    // Direct lengthText
+    duration = video.lengthText?.simpleText ||
+      (video.lengthText?.runs || []).map(run => run.text).join('').trim();
+    
+    // From thumbnailOverlays
+    if (!duration && video.thumbnailOverlays) {
+      for (const overlay of video.thumbnailOverlays) {
+        if (overlay.thumbnailOverlayTimeStatusRenderer) {
+          const renderer = overlay.thumbnailOverlayTimeStatusRenderer;
+          duration = renderer.text?.simpleText ||
+            (renderer.text?.runs || []).map(run => run.text).join('').trim();
+          if (duration) break;
+        }
+      }
+    }
+    
+    // From accessibility data
+    if (!duration && video.lengthText?.accessibility?.accessibilityData?.label) {
+      duration = parseDurationFromLabel(video.lengthText.accessibility.accessibilityData.label);
+    }
+    
+    // From thumbnail accessibility
+    if (!duration && video.thumbnail?.thumbnails?.[0]) {
+      const accessLabel = video.thumbnail?.accessibility?.accessibilityData?.label;
+      if (accessLabel) {
+        duration = parseDurationFromLabel(accessLabel);
+      }
+    }
 
     return { title, url, channel, time: publishedText, duration };
   }
@@ -1021,21 +1133,33 @@
       let duration = '';
       
       // Method 1: Look in the thumbnail overlay (most reliable)
-      const durationEl = element.querySelector('ytd-thumbnail-overlay-time-status-renderer #text');
-      if (durationEl) {
-        const text = durationEl.textContent?.trim() || '';
-        if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
-          duration = text;
+      const durationSelectors = [
+        'ytd-thumbnail-overlay-time-status-renderer #text',
+        'ytd-thumbnail-overlay-time-status-renderer span#text',
+        'ytd-thumbnail-overlay-time-status-renderer .ytd-thumbnail-overlay-time-status-renderer',
+        '#overlays ytd-thumbnail-overlay-time-status-renderer #text',
+        'ytd-thumbnail #overlays ytd-thumbnail-overlay-time-status-renderer #text',
+        '#thumbnail-container ytd-thumbnail-overlay-time-status-renderer #text'
+      ];
+      
+      for (const selector of durationSelectors) {
+        const durationEl = element.querySelector(selector);
+        if (durationEl) {
+          const text = durationEl.textContent?.trim() || '';
+          if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+            duration = text;
+            break;
+          }
         }
       }
       
-      // Method 2: Look for any span with time format inside overlays
+      // Method 2: Look for any span/div with time format inside the thumbnail area
       if (!duration) {
-        const overlays = element.querySelector('#overlays, ytd-thumbnail #overlays');
-        if (overlays) {
-          const spans = overlays.querySelectorAll('span');
-          for (const span of spans) {
-            const text = span.textContent?.trim() || '';
+        const thumbnailArea = element.querySelector('ytd-thumbnail, #thumbnail, a#thumbnail');
+        if (thumbnailArea) {
+          const allTextNodes = thumbnailArea.querySelectorAll('span, div, #text');
+          for (const node of allTextNodes) {
+            const text = node.textContent?.trim() || '';
             if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
               duration = text;
               break;
@@ -1044,52 +1168,68 @@
         }
       }
       
-      // Method 3: Parse from thumbnail link aria-label
+      // Method 3: Try to get from Polymer data (multiple paths)
       if (!duration) {
-        const thumbnailLink = element.querySelector('a#thumbnail[aria-label]');
-        if (thumbnailLink) {
-          const ariaLabel = thumbnailLink.getAttribute('aria-label') || '';
+        // Check for data property on element
+        const data = element.__data || element.data || element._data;
+        if (data) {
+          const paths = [
+            'videoRenderer.lengthText.simpleText',
+            'content.videoRenderer.lengthText.simpleText',
+            'videoRenderer.lengthText.accessibility.accessibilityData.label',
+            'content.videoRenderer.lengthText.accessibility.accessibilityData.label',
+            'videoRenderer.thumbnailOverlays',
+            'content.videoRenderer.thumbnailOverlays'
+          ];
           
-          // "X minutes, Y seconds" format
-          const minSecMatch = ariaLabel.match(/(\d+)\s*minutes?,?\s*(\d+)?\s*seconds?/i);
-          if (minSecMatch) {
-            const mins = parseInt(minSecMatch[1], 10);
-            const secs = minSecMatch[2] ? parseInt(minSecMatch[2], 10) : 0;
-            duration = `${mins}:${secs.toString().padStart(2, '0')}`;
-          }
-          
-          // "X hours, Y minutes" format
-          if (!duration) {
-            const hourMinMatch = ariaLabel.match(/(\d+)\s*hours?,?\s*(\d+)?\s*minutes?/i);
-            if (hourMinMatch) {
-              const hrs = parseInt(hourMinMatch[1], 10);
-              const mins = hourMinMatch[2] ? parseInt(hourMinMatch[2], 10) : 0;
-              duration = `${hrs}:${mins.toString().padStart(2, '0')}:00`;
+          for (const path of paths) {
+            const value = getNestedValue(data, path);
+            if (value) {
+              if (typeof value === 'string' && value.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+                duration = value;
+                break;
+              }
+              // Handle accessibility label like "4 minutes, 3 seconds"
+              if (typeof value === 'string' && value.match(/\d+\s*(minute|hour|second)/i)) {
+                duration = parseDurationFromLabel(value);
+                if (duration) break;
+              }
+              // Handle thumbnailOverlays array
+              if (Array.isArray(value)) {
+                for (const overlay of value) {
+                  const timeText = overlay?.thumbnailOverlayTimeStatusRenderer?.text?.simpleText;
+                  if (timeText && timeText.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+                    duration = timeText;
+                    break;
+                  }
+                }
+                if (duration) break;
+              }
             }
           }
         }
       }
       
-      // Method 4: Try to get from Polymer data
-      if (!duration && element.__data) {
-        const data = element.__data;
-        if (data.videoRenderer?.lengthText?.simpleText) {
-          duration = data.videoRenderer.lengthText.simpleText;
-        } else if (data.content?.videoRenderer?.lengthText?.simpleText) {
-          duration = data.content.videoRenderer.lengthText.simpleText;
-        }
-      }
-      
-      // Method 5: Look in aria-label of any element
+      // Method 4: Parse from any aria-label containing duration info
       if (!duration) {
         const allEls = element.querySelectorAll('[aria-label]');
         for (const el of allEls) {
           const ariaLabel = el.getAttribute('aria-label') || '';
-          const durationMatch = ariaLabel.match(/(\d+)\s*minutes?,?\s*(\d+)?\s*seconds?/i);
-          if (durationMatch) {
-            const mins = parseInt(durationMatch[1], 10);
-            const secs = durationMatch[2] ? parseInt(durationMatch[2], 10) : 0;
-            duration = `${mins}:${secs.toString().padStart(2, '0')}`;
+          const parsed = parseDurationFromLabel(ariaLabel);
+          if (parsed) {
+            duration = parsed;
+            break;
+          }
+        }
+      }
+      
+      // Method 5: Look for badge-style duration display
+      if (!duration) {
+        const badges = element.querySelectorAll('[class*="badge"], [class*="time"], [class*="duration"]');
+        for (const badge of badges) {
+          const text = badge.textContent?.trim() || '';
+          if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+            duration = text;
             break;
           }
         }
@@ -1119,6 +1259,154 @@
     document.body.classList.remove('primeyt-list-active');
     resetBuildState();
     customListBuilt = false;
+    
+    // Clear duration update interval
+    if (durationUpdateInterval) {
+      clearInterval(durationUpdateInterval);
+      durationUpdateInterval = null;
+    }
+    
+    // Stop duration observer
+    stopDurationObserver();
+  }
+
+  // Scan YouTube's DOM for durations and update our list
+  function updateMissingDurations() {
+    const listRows = document.querySelectorAll('.primeyt-video-row');
+    if (!listRows.length) return;
+
+    // Scan YouTube's video elements for duration data
+    const ytVideoElements = document.querySelectorAll('ytd-rich-item-renderer, ytd-video-renderer');
+    
+    ytVideoElements.forEach(el => {
+      // Get video URL from element
+      const link = el.querySelector('a[href*="/watch"]');
+      if (!link) return;
+      
+      const href = link.href || link.getAttribute('href') || '';
+      const videoId = getVideoIdFromUrl(href.startsWith('/') ? 'https://www.youtube.com' + href : href);
+      if (!videoId) return;
+      
+      // Check if we already have duration cached
+      if (durationCache.has(videoId) && durationCache.get(videoId)) return;
+      
+      // Try to extract duration
+      let duration = '';
+      
+      // From overlay
+      const durationEl = el.querySelector('ytd-thumbnail-overlay-time-status-renderer #text');
+      if (durationEl) {
+        const text = durationEl.textContent?.trim() || '';
+        if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+          duration = text;
+        }
+      }
+      
+      // From polymer data
+      if (!duration) {
+        const data = el.__data || el.data;
+        if (data) {
+          const videoRenderer = data.videoRenderer || data.content?.videoRenderer;
+          if (videoRenderer) {
+            duration = videoRenderer.lengthText?.simpleText ||
+              (videoRenderer.lengthText?.runs || []).map(r => r.text).join('').trim();
+            
+            if (!duration && videoRenderer.thumbnailOverlays) {
+              for (const overlay of videoRenderer.thumbnailOverlays) {
+                if (overlay.thumbnailOverlayTimeStatusRenderer) {
+                  duration = overlay.thumbnailOverlayTimeStatusRenderer.text?.simpleText || '';
+                  if (duration) break;
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      if (duration) {
+        durationCache.set(videoId, duration);
+        
+        // Update our list row
+        listRows.forEach(row => {
+          const rowUrl = row.dataset.url;
+          const rowVideoId = getVideoIdFromUrl(rowUrl);
+          if (rowVideoId === videoId) {
+            const durationEl = row.querySelector('.primeyt-video-duration');
+            if (durationEl && !durationEl.textContent) {
+              durationEl.textContent = formatDurationToMinutes(duration);
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Start polling for missing durations
+  function startDurationUpdater() {
+    if (durationUpdateInterval) return;
+    
+    // Update immediately
+    setTimeout(updateMissingDurations, 1000);
+    
+    // Then poll every 2 seconds for 30 seconds
+    let pollCount = 0;
+    durationUpdateInterval = setInterval(() => {
+      updateMissingDurations();
+      pollCount++;
+      if (pollCount > 15) {
+        clearInterval(durationUpdateInterval);
+        durationUpdateInterval = null;
+      }
+    }, 2000);
+    
+    // Also observe YouTube's DOM for duration element additions
+    observeDurationElements();
+  }
+  
+  let durationObserver = null;
+  
+  function observeDurationElements() {
+    if (durationObserver) return;
+    
+    durationObserver = new MutationObserver((mutations) => {
+      let foundNew = false;
+      
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Check if it's a duration element or contains one
+              const isDuration = node.matches?.('ytd-thumbnail-overlay-time-status-renderer') ||
+                                 node.querySelector?.('ytd-thumbnail-overlay-time-status-renderer');
+              if (isDuration) {
+                foundNew = true;
+                break;
+              }
+            }
+          }
+        }
+        if (foundNew) break;
+      }
+      
+      if (foundNew) {
+        // Debounce the update
+        clearTimeout(durationObserver._updateTimeout);
+        durationObserver._updateTimeout = setTimeout(updateMissingDurations, 300);
+      }
+    });
+    
+    // Observe the body for any new duration elements
+    durationObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+  
+  function stopDurationObserver() {
+    if (durationObserver) {
+      durationObserver.disconnect();
+      durationObserver = null;
+    }
   }
 
   // ==========================================
