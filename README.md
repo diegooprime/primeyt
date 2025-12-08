@@ -1,78 +1,65 @@
 # PrimeYT
 
-Minimalist, keyboard-driven YouTube experience with One Dark theme.
+My custom YouTube client. Vim keybinds, One Dark theme, no algorithmic noise.
 
-## Install
+YouTube is designed to keep you watching. I want to watch what I chose to watch, then leave. This strips it down to subscriptions, watch later, and keyboard control.
 
-1. Go to `chrome://extensions` (or `arc://extensions`)
-2. Enable **Developer mode**
-3. Click **Load unpacked** → select this folder
-4. Open [youtube.com](https://youtube.com)
+## Demo
 
-## Keyboard Shortcuts
+[screenshot/gif]
 
-Press `Space + ?` to show help anytime.
+## How it works
 
-### Navigation
+**Feed navigation**
 
 | Key | Action |
 |-----|--------|
-| `j` | Next video in feed |
-| `k` | Previous video in feed |
-| `h` | Go back |
-| `Enter` | Open focused video |
-| `Escape` | Clear focus / Close dialog |
+| `j/k` | Next/prev video |
+| `H` | Back |
+| `Enter` | Open video |
+| `Shift+Enter` | Open in new tab |
+| `g` | Top |
+| `/` | Filter videos |
+| `n/N` | Next/prev match |
+| `Esc` | Clear |
 
-### Video Controls
+**Watch page**
 
 | Key | Action |
 |-----|--------|
-| `f` | Toggle fullscreen |
-| `t` | Toggle theater mode |
-| `m` | Mute / unmute |
-| `c` | Toggle captions |
-| `l` | Like video |
-| `s` | Share (copy link) |
-| `b` | Add to Watch Later |
-| `←/→` | Seek -5s / +5s |
-| `↑/↓` | Volume up / down |
+| `j/l` | Seek -10s/+10s |
+| `k` | Like |
+| `t` | Theater mode |
+| `m` | Mute |
+| `c` | Captions |
+| `s` | Copy link |
+| `w` | Watch Later |
 
-### Leader Commands (Space + ...)
+**Leader commands** (press `Space` first)
 
 | Keys | Action |
 |------|--------|
-| `Space` `f` `f` | Search |
-| `Space` `s` | Subscriptions |
-| `Space` `w` | Watch Later |
-| `Space` `p` | Playlists |
-| `Space` `g` `g` | Scroll to top |
-| `Space` `G` | Scroll to bottom |
-| `Space` `H` | Home |
-| `Space` `?` | Show help |
+| `f f` | Search |
+| `s` | Subscriptions |
+| `w` | Watch Later |
+| `p` | YouTube Studio |
+| `r` | Home |
+| `l` | Forward |
+| `?` | Help |
 
-## Features
+**Removed:** homepage recommendations, shorts (everywhere), comments, sidebar recommendations, end cards, premium upsells, category chips, mini player, notification bell, guide sidebar.
 
-- **One Dark Theme** - Easy on the eyes
-- **Auto Theater Mode** - Videos open in theater mode
-- **No Distractions** - Hides recommendations, shorts, comments, end cards
-- **Stats Tracking** - See your watch time (24h / 7d)
-- **Shorts Redirect** - Shorts URLs redirect to regular player
-- **Clean URLs** - Share links without tracking params
+**Auto behaviors:** theater mode on open, shorts redirect to regular player, share links stripped of tracking params.
 
-## What's Hidden
+**Stats widget:** tracks my watch time (24h/7d). Keeps me honest.
 
-- Homepage recommendations
-- Shorts (everywhere)
-- Comments section
-- Sidebar recommendations
-- End cards / annotations
-- Premium upsells
-- Category chips
-- Mini player
-- Notification bell
-- Guide sidebar
+## Install
 
-## Philosophy
+```bash
+git clone [repo]
+# chrome://extensions/ → Developer mode → Load unpacked → select folder
+```
 
-Mindful YouTube consumption. Only subscriptions, watch later, and playlists. Everything via keyboard.
+## License
 
+MIT

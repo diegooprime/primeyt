@@ -37,7 +37,6 @@ const PrimeYTKeyboard = (function() {
       'H': () => goBack(),
       
       // Navigation (non-watch pages)
-      'g': () => { scrollToTop(); return true; },
       'Enter': (e) => openFocusedVideo(e && e.shiftKey),
       'Escape': () => handleEscape(),
       
@@ -50,7 +49,9 @@ const PrimeYTKeyboard = (function() {
       
       // Actions
       'w': () => addToWatchLater(),
-      's': () => shareVideo(),
+      's': () => null, // Disabled - conflicts with other extension
+      'S': () => shareVideo(), // Shift+S to copy link
+      'x': () => removeFromPlaylist(), // Remove focused video from playlist
     },
     
     // Leader key chords (Space + keys)
@@ -770,20 +771,6 @@ const PrimeYTKeyboard = (function() {
     return true;
   }
   
-  function togglePlayPause() {
-    const player = getPlayer();
-    if (player) {
-      // Use YouTube's player API
-      const state = player.getPlayerState();
-      if (state === 1) { // Playing
-        player.pauseVideo();
-      } else {
-        player.playVideo();
-      }
-    }
-    return true;
-  }
-  
   function toggleMute() {
     const player = getPlayer();
     if (player) {
@@ -890,51 +877,6 @@ const PrimeYTKeyboard = (function() {
     return true;
   }
   
-  function goToChannel() {
-    // Try multiple selectors for channel link
-    const selectors = [
-      '#owner a.yt-simple-endpoint',
-      '#channel-name a.yt-simple-endpoint',
-      'ytd-video-owner-renderer a.yt-simple-endpoint',
-      '#owner ytd-channel-name a',
-      '#upload-info a[href*="/@"]',
-      '#upload-info a[href*="/channel/"]',
-      'a[href*="/@"]'
-    ];
-    
-    for (const selector of selectors) {
-      const link = document.querySelector(selector);
-      if (link && link.href && (link.href.includes('/@') || link.href.includes('/channel/'))) {
-        window.location.href = link.href;
-        return true;
-      }
-    }
-    
-    showSeekFeedback('Channel not found');
-    return true;
-  }
-  
-  function setQuality720() {
-    const player = getPlayer();
-    if (player) {
-      try {
-        // Try using setPlaybackQualityRange (works on some versions)
-        if (player.setPlaybackQualityRange) {
-          player.setPlaybackQualityRange('hd720', 'hd720');
-        }
-        // Also try setPlaybackQuality
-        if (player.setPlaybackQuality) {
-          player.setPlaybackQuality('hd720');
-        }
-        showSeekFeedback('720p');
-      } catch (e) {
-        console.log('[PrimeYT] Quality change error:', e);
-        showSeekFeedback('720p (may need manual)');
-      }
-    }
-    return true;
-  }
-  
   function setMaxQuality() {
     const player = getPlayer();
     if (player && player.getAvailableQualityLevels) {
@@ -1008,6 +950,227 @@ const PrimeYTKeyboard = (function() {
       addToWatchLaterFromList();
     }
     return true;
+  }
+  
+  // ==========================================
+  // Remove from Playlist
+  // ==========================================
+  
+  function isOnPlaylistPage() {
+    return window.location.pathname.startsWith('/playlist');
+  }
+  
+  function removeFromPlaylist() {
+    // Only works on playlist pages with a focused video
+    if (!isOnPlaylistPage()) {
+      return null; // Don't consume key on non-playlist pages
+    }
+    
+    if (!state.focusedVideo) {
+      showToast('No video selected');
+      return true;
+    }
+    
+    console.log('[PrimeYT] Removing video from playlist');
+    
+    // Check if this is a custom PrimeYT row
+    if (state.focusedVideo.classList.contains('primeyt-video-row')) {
+      const videoUrl = state.focusedVideo.dataset.url;
+      if (!videoUrl) {
+        showToast('No video URL');
+        return true;
+      }
+      
+      const videoId = extractVideoId(videoUrl);
+      if (!videoId) {
+        showToast('Invalid video URL');
+        return true;
+      }
+      
+      // Find the original YouTube playlist item element
+      const originalElement = findOriginalPlaylistElement(videoId);
+      
+      if (originalElement) {
+        clickRemoveFromPlaylist(originalElement);
+      } else {
+        showToast('Playlist item not found');
+      }
+      return true;
+    }
+    
+    // Standard YouTube element
+    clickRemoveFromPlaylist(state.focusedVideo);
+    return true;
+  }
+  
+  function findOriginalPlaylistElement(videoId) {
+    // Look for playlist video renderer elements
+    const elements = document.querySelectorAll('ytd-playlist-video-renderer');
+    
+    for (const el of elements) {
+      const links = el.querySelectorAll('a[href*="watch"]');
+      for (const link of links) {
+        if (link.href && link.href.includes(videoId)) {
+          return el;
+        }
+      }
+    }
+    return null;
+  }
+  
+  function clickRemoveFromPlaylist(element) {
+    // Find the 3-dot menu button
+    const menuSelectors = [
+      'ytd-menu-renderer yt-icon-button#button button',
+      'ytd-menu-renderer yt-icon-button button',
+      'ytd-menu-renderer button[aria-label*="Action" i]',
+      '#menu yt-icon-button#button button',
+      '#menu yt-icon-button button',
+      'ytd-menu-renderer button',
+      'yt-icon-button#button button',
+      'button[aria-label*="Action" i]',
+      'button[aria-label*="More" i]'
+    ];
+    
+    let menuBtn = null;
+    for (const selector of menuSelectors) {
+      menuBtn = element.querySelector(selector);
+      if (menuBtn) {
+        console.log('[PrimeYT] Found menu with selector:', selector);
+        break;
+      }
+    }
+    
+    if (!menuBtn) {
+      // Try yt-icon-button fallback
+      const iconButtons = element.querySelectorAll('yt-icon-button');
+      for (const ib of iconButtons) {
+        const btn = ib.querySelector('button') || ib;
+        if (btn) {
+          menuBtn = btn;
+          break;
+        }
+      }
+    }
+    
+    if (!menuBtn) {
+      showToast('Menu not found');
+      return;
+    }
+    
+    // Store reference to the row to remove it later
+    const rowToRemove = state.focusedVideo;
+    
+    console.log('[PrimeYT] Clicking menu button');
+    menuBtn.click();
+    
+    // Wait for menu to appear and click "Remove from"
+    setTimeout(() => {
+      clickRemoveOption(rowToRemove);
+    }, 300);
+  }
+  
+  function clickRemoveOption(rowToRemove) {
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    const tryClick = () => {
+      attempts++;
+      
+      // Find visible popup menu
+      let menuContainer = null;
+      const dropdowns = document.querySelectorAll('tp-yt-iron-dropdown, ytd-popup-container');
+      for (const d of dropdowns) {
+        const style = window.getComputedStyle(d);
+        if (style.display !== 'none' && d.offsetParent !== null) {
+          menuContainer = d;
+          break;
+        }
+      }
+      
+      // Look for menu items
+      const menuItemSelectors = [
+        'ytd-menu-service-item-renderer',
+        'tp-yt-paper-item',
+        'ytd-menu-navigation-item-renderer',
+        'yt-list-item-view-model'
+      ];
+      
+      let menuItems = [];
+      const searchRoot = menuContainer || document;
+      
+      for (const selector of menuItemSelectors) {
+        menuItems = Array.from(searchRoot.querySelectorAll(selector));
+        menuItems = menuItems.filter(el => {
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && el.offsetParent !== null;
+        });
+        if (menuItems.length > 0) break;
+      }
+      
+      console.log('[PrimeYT] Remove menu attempt', attempts, '- found', menuItems.length, 'items');
+      
+      // Look for "Remove from" option
+      for (const item of menuItems) {
+        const text = (item.textContent || '').toLowerCase();
+        const ariaLabel = (item.getAttribute('aria-label') || '').toLowerCase();
+        
+        if (text.includes('remove from') || ariaLabel.includes('remove from') ||
+            text.includes('remove') && (text.includes('playlist') || text.includes('watch later'))) {
+          console.log('[PrimeYT] Found Remove option, clicking');
+          item.click();
+          showToast('✓ Removed');
+          
+          // Remove the row from our custom list and move focus
+          if (rowToRemove && rowToRemove.classList.contains('primeyt-video-row')) {
+            // Get next video to focus before removing
+            const nextVideo = rowToRemove.nextElementSibling || rowToRemove.previousElementSibling;
+            
+            // Remove the row with animation
+            rowToRemove.style.transition = 'opacity 0.2s, transform 0.2s';
+            rowToRemove.style.opacity = '0';
+            rowToRemove.style.transform = 'translateX(-20px)';
+            
+            setTimeout(() => {
+              rowToRemove.remove();
+              
+              // Focus next video if available
+              if (nextVideo && nextVideo.classList.contains('primeyt-video-row')) {
+                state.focusedVideo = nextVideo;
+                nextVideo.classList.add('primeyt-focused');
+                nextVideo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                updateRelativeLineNumbers(nextVideo);
+              } else {
+                state.focusedVideo = null;
+                state.focusedIndex = -1;
+              }
+              
+              // Re-index remaining rows
+              const rows = document.querySelectorAll('.primeyt-video-row');
+              rows.forEach((row, idx) => {
+                row.dataset.index = idx;
+                const lineNum = row.querySelector('.primeyt-line-number');
+                if (lineNum) lineNum.dataset.index = idx;
+              });
+              updateRelativeLineNumbers(state.focusedVideo);
+            }, 200);
+          }
+          
+          return;
+        }
+      }
+      
+      if (attempts < maxAttempts) {
+        setTimeout(tryClick, 100);
+      } else {
+        console.log('[PrimeYT] Remove option not found');
+        showToast('Remove not in menu');
+        // Close menu
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      }
+    };
+    
+    tryClick();
   }
   
   function addToWatchLaterFromList() {
@@ -1752,15 +1915,7 @@ const PrimeYTKeyboard = (function() {
   }
   
   function goToStudio() {
-    window.location.href = 'https://studio.youtube.com/channel/UC_wSmKfzko25UQOgki3jOjw/videos/upload?filter=%5B%5D&sort=%7B%22columnType%22%3A%22date%22%2C%22sortOrder%22%3A%22DESCENDING%22%7D';
-  }
-  
-  function goToHome() {
-    window.location.href = 'https://www.youtube.com/';
-  }
-  
-  function refreshFeed() {
-    window.location.reload();
+    window.location.href = 'https://studio.youtube.com/';
   }
   
   function goToHomeRefresh() {
@@ -1775,11 +1930,6 @@ const PrimeYTKeyboard = (function() {
   function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     clearFocus();
-    return true;
-  }
-  
-  function scrollToBottom() {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     return true;
   }
   
@@ -1832,7 +1982,6 @@ const PrimeYTKeyboard = (function() {
             <div class="primeyt-help-row"><kbd>k</kbd> <span>Like/Unlike</span></div>
             <div class="primeyt-help-row"><kbd>m</kbd> <span>Mute/unmute</span></div>
             <div class="primeyt-help-row"><kbd>c</kbd> <span>Captions</span></div>
-            <div class="primeyt-help-row"><kbd>7</kbd> <span>720p quality</span></div>
             <div class="primeyt-help-row"><kbd>t</kbd> <span>Theater mode</span></div>
           </div>
           <div class="primeyt-help-section">
@@ -1843,13 +1992,13 @@ const PrimeYTKeyboard = (function() {
             <div class="primeyt-help-row"><kbd>/</kbd> <span>Filter videos</span></div>
             <div class="primeyt-help-row"><kbd>Enter</kbd> <span>Open video</span></div>
             <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>Enter</kbd> <span>Open in new tab</span></div>
-            <div class="primeyt-help-row"><kbd>g</kbd> <span>Scroll to top</span></div>
             <div class="primeyt-help-row"><kbd>Esc</kbd> <span>Clear/Close</span></div>
           </div>
           <div class="primeyt-help-section">
             <div class="primeyt-help-title">Actions</div>
             <div class="primeyt-help-row"><kbd>w</kbd> <span>Watch Later</span></div>
-            <div class="primeyt-help-row"><kbd>s</kbd> <span>Share (copy link)</span></div>
+            <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>S</kbd> <span>Share (copy link)</span></div>
+            <div class="primeyt-help-row"><kbd>x</kbd> <span>Remove from playlist</span></div>
           </div>
           <div class="primeyt-help-section">
             <div class="primeyt-help-title">Leader Commands</div>

@@ -194,11 +194,6 @@ const PrimeYTStats = (function() {
     return { last24h, last7d };
   }
   
-  function isVideoWatched(videoId) {
-    if (!videoId) return false;
-    return state.watchedVideos.some(v => v.id === videoId);
-  }
-  
   function getWatchedVideoIds() {
     return new Set(state.watchedVideos.map(v => v.id));
   }
@@ -256,7 +251,6 @@ const PrimeYTStats = (function() {
     getWatchedVideosCount,
     trackVideo,
     getVideoId,
-    isVideoWatched,
     getWatchedVideoIds
   };
 })();

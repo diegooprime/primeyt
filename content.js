@@ -428,7 +428,6 @@
   // Custom Caption System (Clean & Simple)
   // ==========================================
   
-  let captionObserver = null;
   let customCaptionContainer = null;
   let lastCaptionText = '';
   let displayedPhrases = [];
@@ -549,10 +548,6 @@
   }
   
   function destroyCaptionStyling() {
-    if (captionObserver) {
-      captionObserver.disconnect();
-      captionObserver = null;
-    }
     if (captionPollInterval) {
       clearInterval(captionPollInterval);
       captionPollInterval = null;
