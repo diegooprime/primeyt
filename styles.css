@@ -579,6 +579,19 @@ body.primeyt-list-active.primeyt-page-search ytd-section-list-renderer {
   display: none !important;
 }
 
+/* Hide YouTube's playlist content when our list is active */
+body.primeyt-list-active.primeyt-page-playlist ytd-browse,
+body.primeyt-list-active.primeyt-page-playlist ytd-playlist-video-list-renderer,
+body.primeyt-list-active.primeyt-page-playlist ytd-two-column-browse-results-renderer,
+body.primeyt-list-active.primeyt-page-playlist ytd-section-list-renderer,
+body.primeyt-list-active.primeyt-page-playlist ytd-playlist-header-renderer,
+body.primeyt-list-active.primeyt-page-playlist ytd-playlist-sidebar-renderer,
+body.primeyt-list-active.primeyt-page-playlist #primary,
+body.primeyt-list-active.primeyt-page-playlist #secondary,
+body.primeyt-list-active.primeyt-page-playlist #contents.ytd-playlist-video-list-renderer {
+  display: none !important;
+}
+
 /* ========================================
    HOMEPAGE MESSAGE
    ======================================== */
@@ -626,45 +639,45 @@ body.primeyt-list-active.primeyt-page-search ytd-section-list-renderer {
 /* Search page uses the same custom list as subscriptions - see primeyt-list-active rules above */
 
 /* ========================================
-   PLAYLIST PAGES
+   PLAYLIST PAGES (fallback when custom list not active)
    ======================================== */
 
-ytd-playlist-video-list-renderer #contents {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-list-renderer #contents {
   max-width: 700px;
   margin: 0 auto;
 }
 
-ytd-playlist-video-renderer {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
 }
 
-ytd-playlist-video-renderer:hover {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer:hover {
   background-color: var(--bg-secondary);
 }
 
-ytd-playlist-video-renderer #thumbnail,
-ytd-playlist-video-renderer ytd-thumbnail {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #thumbnail,
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer ytd-thumbnail {
   display: none !important;
 }
 
-ytd-playlist-video-renderer #meta,
-ytd-playlist-video-renderer #content {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #meta,
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #content {
   margin-left: 0 !important;
   padding-left: 0 !important;
 }
 
-ytd-playlist-video-renderer #video-title {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #video-title {
   color: var(--text-primary);
   font-size: 15px;
 }
 
-ytd-playlist-video-renderer #byline-container {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #byline-container {
   color: var(--text-secondary);
 }
 
-ytd-playlist-video-renderer #index,
-ytd-playlist-video-renderer #reorder {
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #index,
+body.primeyt-page-playlist:not(.primeyt-list-active) ytd-playlist-video-renderer #reorder {
   display: none !important;
 }
 

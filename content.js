@@ -618,6 +618,10 @@
     return window.location.pathname === '/results';
   }
 
+  function isPlaylistPage() {
+    return window.location.pathname.startsWith('/playlist');
+  }
+
   function scheduleBuildCustomVideoList(delay = 500) {
     if (buildTimeout) {
       clearTimeout(buildTimeout);
@@ -726,7 +730,7 @@
   }
   
   function buildCustomVideoList() {
-    if (!isSubscriptionsPage() && !isSearchPage()) return;
+    if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage()) return;
     
     // Don't rebuild if list already exists and has videos
     const existingList = document.getElementById('primeyt-video-list');
@@ -746,7 +750,7 @@
       combined.push(video);
     });
 
-    const pageType = isSearchPage() ? 'search' : 'subscriptions';
+    const pageType = isSearchPage() ? 'search' : isPlaylistPage() ? 'playlist' : 'subscriptions';
     console.log(`[PrimeYT] Build attempt ${buildAttempts + 1} (${pageType}), found ${combined.length} videos (${videosFromData.length} from data, ${videosFromDom.length} from DOM)`);
 
     if (combined.length === 0) {
@@ -905,6 +909,22 @@
           if (video) videos.push(video);
         }
       }
+      
+      // Check for playlistVideoRenderer (used in playlist pages)
+      if (node.playlistVideoRenderer) {
+        const video = normalizePlaylistVideoRenderer(node.playlistVideoRenderer);
+        if (video) videos.push(video);
+      }
+      
+      // Also check for playlistVideoListRenderer contents
+      if (node.playlistVideoListRenderer && node.playlistVideoListRenderer.contents) {
+        for (const item of node.playlistVideoListRenderer.contents) {
+          if (item.playlistVideoRenderer) {
+            const video = normalizePlaylistVideoRenderer(item.playlistVideoRenderer);
+            if (video) videos.push(video);
+          }
+        }
+      }
 
       if (Array.isArray(node)) {
         for (const child of node) {
@@ -925,6 +945,50 @@
     }
 
     return videos;
+  }
+
+  function normalizePlaylistVideoRenderer(video) {
+    const videoId = video.videoId;
+    const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
+    if (!url) return null;
+
+    const title = video.title?.simpleText ||
+      (video.title?.runs || []).map(run => run.text).join('').trim();
+    if (!title) return null;
+
+    const ownerRuns = video.shortBylineText?.runs ||
+      video.longBylineText?.runs ||
+      [];
+    const channel = ownerRuns.map(run => run.text).join('').trim();
+
+    // Playlist videos often don't have publish date, but might have video info
+    const publishedText = video.videoInfo?.runs?.map(run => run.text).join('').trim() || '';
+
+    // Get duration
+    let duration = '';
+    
+    // Direct lengthText
+    duration = video.lengthText?.simpleText ||
+      (video.lengthText?.runs || []).map(run => run.text).join('').trim();
+    
+    // From thumbnailOverlays
+    if (!duration && video.thumbnailOverlays) {
+      for (const overlay of video.thumbnailOverlays) {
+        if (overlay.thumbnailOverlayTimeStatusRenderer) {
+          const renderer = overlay.thumbnailOverlayTimeStatusRenderer;
+          duration = renderer.text?.simpleText ||
+            (renderer.text?.runs || []).map(run => run.text).join('').trim();
+          if (duration) break;
+        }
+      }
+    }
+    
+    // From accessibility data
+    if (!duration && video.lengthText?.accessibility?.accessibilityData?.label) {
+      duration = parseDurationFromLabel(video.lengthText.accessibility.accessibilityData.label);
+    }
+
+    return { title, url, channel, time: publishedText, duration };
   }
 
   function normalizeVideoRenderer(video) {
@@ -1276,7 +1340,7 @@
     if (!listRows.length) return;
 
     // Scan YouTube's video elements for duration data
-    const ytVideoElements = document.querySelectorAll('ytd-rich-item-renderer, ytd-video-renderer');
+    const ytVideoElements = document.querySelectorAll('ytd-rich-item-renderer, ytd-video-renderer, ytd-playlist-video-renderer');
     
     ytVideoElements.forEach(el => {
       // Get video URL from element
@@ -1306,7 +1370,7 @@
       if (!duration) {
         const data = el.__data || el.data;
         if (data) {
-          const videoRenderer = data.videoRenderer || data.content?.videoRenderer;
+          const videoRenderer = data.videoRenderer || data.content?.videoRenderer || data.playlistVideoRenderer;
           if (videoRenderer) {
             duration = videoRenderer.lengthText?.simpleText ||
               (videoRenderer.lengthText?.runs || []).map(r => r.text).join('').trim();
@@ -1377,7 +1441,9 @@
             if (node.nodeType === Node.ELEMENT_NODE) {
               // Check if it's a duration element or contains one
               const isDuration = node.matches?.('ytd-thumbnail-overlay-time-status-renderer') ||
-                                 node.querySelector?.('ytd-thumbnail-overlay-time-status-renderer');
+                                 node.matches?.('ytd-playlist-video-renderer') ||
+                                 node.querySelector?.('ytd-thumbnail-overlay-time-status-renderer') ||
+                                 node.querySelector?.('ytd-playlist-video-renderer');
               if (isDuration) {
                 foundNew = true;
                 break;
@@ -1472,8 +1538,8 @@
       destroyCaptionStyling();
     }
     
-    // Handle subscriptions page and search page
-    if (isSubscriptionsPage() || isSearchPage()) {
+    // Handle subscriptions page, search page, and playlist pages
+    if (isSubscriptionsPage() || isSearchPage() || isPlaylistPage()) {
       resetBuildState();
       scheduleBuildCustomVideoList(800);
     } else if (path !== '/watch' && path !== '/') {
@@ -1505,7 +1571,7 @@
     
     // Watch for new videos being added to the feed (infinite scroll)
     const feedObserver = new MutationObserver((mutations) => {
-      if (!isSubscriptionsPage() && !isSearchPage()) return;
+      if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage()) return;
       
       let shouldRebuild = false;
       for (const mutation of mutations) {
@@ -1515,8 +1581,10 @@
               if (node.matches && (
                 node.matches('ytd-rich-item-renderer') ||
                 node.matches('ytd-video-renderer') ||
+                node.matches('ytd-playlist-video-renderer') ||
                 node.querySelector?.('ytd-rich-item-renderer') ||
-                node.querySelector?.('ytd-video-renderer')
+                node.querySelector?.('ytd-video-renderer') ||
+                node.querySelector?.('ytd-playlist-video-renderer')
               )) {
                 shouldRebuild = true;
                 break;
