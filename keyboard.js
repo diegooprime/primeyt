@@ -11,7 +11,11 @@ const PrimeYTKeyboard = (function() {
     focusedVideo: null,
     focusedIndex: -1,
     leaderIndicator: null,
-    searchOverlay: null
+    searchOverlay: null,
+    filterOverlay: null,
+    filterActive: false,
+    countBuffer: '',      // For Vim-style count prefix (e.g., "5" in "5j")
+    countTimer: null      // Reset count after timeout
   };
   
   // ==========================================
@@ -27,7 +31,6 @@ const PrimeYTKeyboard = (function() {
       'l': () => isOnWatchPage() ? seekForward(10) : null,
       'm': () => isOnWatchPage() ? toggleMute() : null,
       'c': () => isOnWatchPage() ? toggleCaptions() : null,
-      '7': () => isOnWatchPage() ? setQuality720() : null,
       't': () => isOnWatchPage() ? toggleTheater() : null,
       
       // Shift+H to go back - works on ALL pages
@@ -38,6 +41,13 @@ const PrimeYTKeyboard = (function() {
       'G': () => { scrollToBottom(); return true; },
       'Enter': (e) => openFocusedVideo(e && e.shiftKey),
       'Escape': () => handleEscape(),
+      
+      // Vim-style filter search with /
+      '/': () => !isOnWatchPage() ? openFilter() : null,
+      
+      // Navigate filter matches (like Vim n/N)
+      'n': () => !isOnWatchPage() ? navigateFilterMatches(1) : null,
+      'N': () => !isOnWatchPage() ? navigateFilterMatches(-1) : null,
       
       // Actions
       'w': () => addToWatchLater(),
@@ -83,6 +93,15 @@ const PrimeYTKeyboard = (function() {
     if (state.searchOverlay?.classList.contains('active')) {
       if (e.key === 'Escape') {
         closeSearch();
+        e.preventDefault();
+      }
+      return;
+    }
+    
+    // Handle filter overlay
+    if (state.filterOverlay?.classList.contains('active')) {
+      if (e.key === 'Escape') {
+        closeFilter();
         e.preventDefault();
       }
       return;
@@ -144,10 +163,45 @@ const PrimeYTKeyboard = (function() {
       return;
     }
     
+    // Vim-style count buffer: accumulate digits (1-9 to start, then 0-9)
+    // On feed pages only, not watch page
+    if (!isOnWatchPage()) {
+      const isDigit = /^[0-9]$/.test(e.key);
+      
+      if (isDigit) {
+        // Don't start count with 0 (0 could be a command itself)
+        if (state.countBuffer === '' && e.key === '0') {
+          // Let it fall through to direct bindings
+        } else {
+          state.countBuffer += e.key;
+          showCountIndicator();
+          resetCountTimer();
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+    
+    // Get count from buffer (default to 1)
+    const count = parseInt(state.countBuffer, 10) || 1;
+    
+    // Clear count buffer before executing action
+    const hadCount = state.countBuffer !== '';
+    clearCountBuffer();
+    
     // Direct bindings
     const directAction = bindings.direct[e.key];
     if (directAction) {
-      const result = directAction(e);
+      // Pass count to navigation actions
+      let result;
+      if (e.key === 'j' && !isOnWatchPage()) {
+        result = navigateVideos(count);
+      } else if (e.key === 'k' && !isOnWatchPage()) {
+        result = navigateVideos(-count);
+      } else {
+        result = directAction(e);
+      }
+      
       // Only prevent default if action returned something (not null)
       if (result !== null) {
         e.preventDefault();
@@ -156,6 +210,41 @@ const PrimeYTKeyboard = (function() {
         return false;
       }
     }
+  }
+  
+  // ==========================================
+  // Count Buffer (Vim-style count prefix)
+  // ==========================================
+  
+  function showCountIndicator() {
+    if (!state.leaderIndicator) createLeaderIndicator();
+    state.leaderIndicator.classList.add('active');
+    const keysSpan = state.leaderIndicator.querySelector('.keys');
+    const labelSpan = state.leaderIndicator.querySelector('.label');
+    labelSpan.textContent = 'COUNT';
+    keysSpan.textContent = state.countBuffer;
+  }
+  
+  function clearCountBuffer() {
+    state.countBuffer = '';
+    if (state.countTimer) {
+      clearTimeout(state.countTimer);
+      state.countTimer = null;
+    }
+    // Only hide if not in leader mode
+    if (!state.leaderActive && state.leaderIndicator) {
+      state.leaderIndicator.classList.remove('active');
+      // Reset label
+      const labelSpan = state.leaderIndicator.querySelector('.label');
+      if (labelSpan) labelSpan.textContent = 'LEADER';
+    }
+  }
+  
+  function resetCountTimer() {
+    if (state.countTimer) clearTimeout(state.countTimer);
+    state.countTimer = setTimeout(() => {
+      clearCountBuffer();
+    }, 1500); // Reset after 1.5s of no input
   }
   
   function activateLeader() {
@@ -183,14 +272,19 @@ const PrimeYTKeyboard = (function() {
     const isEditable = element.isContentEditable;
     const isInput = tagName === 'input' || tagName === 'textarea';
     const isSearchInput = element.id === 'primeyt-search-input';
+    const isFilterInput = element.id === 'primeyt-filter-input';
     
-    return isEditable || isInput || isSearchInput;
+    return isEditable || isInput || isSearchInput || isFilterInput;
   }
   
   function handleEscape() {
     if (state.searchOverlay?.classList.contains('active')) {
       closeSearch();
+    } else if (state.filterOverlay?.classList.contains('active')) {
+      closeFilter();
     } else {
+      // Clear filter highlighting too
+      clearVideoFilter();
       clearFocus();
     }
   }
@@ -275,6 +369,9 @@ const PrimeYTKeyboard = (function() {
       state.focusedVideo = video;
       video.classList.add('primeyt-focused');
       video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Update relative line numbers
+      updateRelativeLineNumbers(state.focusedIndex);
     }
     
     return true;
@@ -285,6 +382,9 @@ const PrimeYTKeyboard = (function() {
       state.focusedVideo.classList.remove('primeyt-focused');
       state.focusedVideo = null;
       state.focusedIndex = -1;
+      
+      // Reset to absolute line numbers
+      updateRelativeLineNumbers(-1);
     }
   }
   
@@ -375,6 +475,221 @@ const PrimeYTKeyboard = (function() {
     if (state.searchOverlay) {
       state.searchOverlay.classList.remove('active');
     }
+  }
+  
+  // ==========================================
+  // Filter Dialog (Vim-style / search)
+  // ==========================================
+  
+  function createFilterOverlay() {
+    const overlay = document.createElement('div');
+    overlay.id = 'primeyt-filter-overlay';
+    overlay.className = 'primeyt-filter-bar';
+    overlay.innerHTML = `
+      <span class="primeyt-filter-slash">/</span>
+      <input type="text" id="primeyt-filter-input" class="primeyt-filter-input" placeholder="Filter videos..." autofocus>
+      <span class="primeyt-filter-count" id="primeyt-filter-count"></span>
+      <span class="primeyt-filter-hint">Enter to jump · Esc to close · n/N next/prev</span>
+    `;
+    document.body.appendChild(overlay);
+    
+    const input = overlay.querySelector('#primeyt-filter-input');
+    
+    // Filter as you type
+    input.addEventListener('input', (e) => {
+      filterVideoList(input.value);
+    });
+    
+    // Handle special keys
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        // Jump to first match and close
+        const firstMatch = document.querySelector('.primeyt-video-row.primeyt-filter-match');
+        if (firstMatch) {
+          focusVideoRow(firstMatch);
+        }
+        closeFilter();
+        e.preventDefault();
+      } else if (e.key === 'Escape') {
+        closeFilter();
+        e.preventDefault();
+      } else if (e.key === 'n' && !e.shiftKey && e.ctrlKey) {
+        // Ctrl+n for next match
+        navigateFilterMatches(1);
+        e.preventDefault();
+      } else if (e.key === 'n' && e.shiftKey && e.ctrlKey) {
+        // Ctrl+Shift+n for previous match
+        navigateFilterMatches(-1);
+        e.preventDefault();
+      }
+    });
+    
+    state.filterOverlay = overlay;
+    return overlay;
+  }
+  
+  function openFilter() {
+    // Only works on pages with custom video list
+    const videoList = document.getElementById('primeyt-video-list');
+    if (!videoList) return null;
+    
+    if (!state.filterOverlay) createFilterOverlay();
+    state.filterOverlay.classList.add('active');
+    state.filterActive = true;
+    
+    const input = state.filterOverlay.querySelector('#primeyt-filter-input');
+    input.value = '';
+    
+    // Reset filter state
+    clearVideoFilter();
+    
+    setTimeout(() => input.focus(), 10);
+    return true;
+  }
+  
+  function closeFilter(clearFilter = false) {
+    if (state.filterOverlay) {
+      state.filterOverlay.classList.remove('active');
+      state.filterActive = false;
+      
+      if (clearFilter) {
+        clearVideoFilter();
+      }
+    }
+  }
+  
+  function clearVideoFilter() {
+    const rows = document.querySelectorAll('.primeyt-video-row');
+    if (rows.length === 0) return;
+    
+    rows.forEach(row => {
+      row.classList.remove('primeyt-filter-match', 'primeyt-filter-hidden', 'primeyt-filter-current');
+      row.style.display = '';
+    });
+    
+    const countEl = document.getElementById('primeyt-filter-count');
+    if (countEl) countEl.textContent = '';
+  }
+  
+  function filterVideoList(query) {
+    const rows = document.querySelectorAll('.primeyt-video-row');
+    
+    if (!query || query.trim() === '') {
+      clearVideoFilter();
+      return;
+    }
+    
+    const searchTerms = query.toLowerCase().trim().split(/\s+/);
+    let matchCount = 0;
+    let firstMatch = null;
+    
+    rows.forEach(row => {
+      const title = row.querySelector('.primeyt-video-title')?.textContent?.toLowerCase() || '';
+      const channel = row.querySelector('.primeyt-video-channel')?.textContent?.toLowerCase() || '';
+      const fullText = title + ' ' + channel;
+      
+      // All search terms must match (AND logic)
+      const matches = searchTerms.every(term => fullText.includes(term));
+      
+      if (matches) {
+        row.classList.add('primeyt-filter-match');
+        row.classList.remove('primeyt-filter-hidden');
+        row.style.display = '';
+        matchCount++;
+        if (!firstMatch) firstMatch = row;
+      } else {
+        row.classList.remove('primeyt-filter-match', 'primeyt-filter-current');
+        row.classList.add('primeyt-filter-hidden');
+        row.style.display = 'none';
+      }
+    });
+    
+    // Highlight first match
+    if (firstMatch) {
+      document.querySelectorAll('.primeyt-filter-current').forEach(el => {
+        el.classList.remove('primeyt-filter-current');
+      });
+      firstMatch.classList.add('primeyt-filter-current');
+      firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    updateFilterCount(matchCount, rows.length);
+  }
+  
+  function updateFilterCount(matches, total) {
+    const countEl = document.getElementById('primeyt-filter-count');
+    if (countEl) {
+      if (matches === total || matches === 0 && document.getElementById('primeyt-filter-input')?.value === '') {
+        countEl.textContent = '';
+      } else {
+        countEl.textContent = `${matches}/${total}`;
+      }
+    }
+  }
+  
+  function navigateFilterMatches(direction) {
+    const matches = Array.from(document.querySelectorAll('.primeyt-video-row.primeyt-filter-match'));
+    if (matches.length === 0) return null; // No matches, don't consume the key
+    
+    const currentIndex = matches.findIndex(m => m.classList.contains('primeyt-filter-current'));
+    let newIndex;
+    
+    if (currentIndex === -1) {
+      newIndex = direction > 0 ? 0 : matches.length - 1;
+    } else {
+      newIndex = currentIndex + direction;
+      if (newIndex < 0) newIndex = matches.length - 1;
+      if (newIndex >= matches.length) newIndex = 0;
+    }
+    
+    // Update current
+    matches.forEach(m => m.classList.remove('primeyt-filter-current'));
+    matches[newIndex].classList.add('primeyt-filter-current');
+    matches[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Also focus this video for Enter to open it
+    focusVideoRow(matches[newIndex]);
+    
+    return true;
+  }
+  
+  function focusVideoRow(row) {
+    // Clear previous focus
+    if (state.focusedVideo) {
+      state.focusedVideo.classList.remove('primeyt-focused');
+    }
+    
+    // Focus the row
+    row.classList.add('primeyt-focused');
+    state.focusedVideo = row;
+    state.focusedIndex = parseInt(row.dataset.index, 10) || 0;
+    
+    // Update relative line numbers
+    updateRelativeLineNumbers(state.focusedIndex);
+  }
+  
+  // ==========================================
+  // Relative Line Numbers (Vim-style)
+  // ==========================================
+  
+  function updateRelativeLineNumbers(currentIndex = -1) {
+    const lineNumbers = document.querySelectorAll('.primeyt-line-number');
+    
+    lineNumbers.forEach(el => {
+      const index = parseInt(el.dataset.index, 10);
+      
+      if (currentIndex === -1) {
+        // No focus - show absolute line numbers
+        el.textContent = index;
+      } else if (index === currentIndex) {
+        // Current line - show absolute number (like Vim with relativenumber + number)
+        el.textContent = index;
+      } else {
+        // Show relative distance
+        const distance = Math.abs(index - currentIndex);
+        el.textContent = distance;
+      }
+    });
   }
   
   // ==========================================
@@ -1464,6 +1779,8 @@ const PrimeYTKeyboard = (function() {
             <div class="primeyt-help-title">Navigation</div>
             <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>H</kbd> <span>Go back (any page)</span></div>
             <div class="primeyt-help-row"><kbd>j</kbd> / <kbd>k</kbd> <span>Next/Prev video</span></div>
+            <div class="primeyt-help-row"><kbd>5</kbd><kbd>j</kbd> <span>Down 5 videos</span></div>
+            <div class="primeyt-help-row"><kbd>/</kbd> <span>Filter videos</span></div>
             <div class="primeyt-help-row"><kbd>Enter</kbd> <span>Open video</span></div>
             <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>Enter</kbd> <span>Open in new tab</span></div>
             <div class="primeyt-help-row"><kbd>g</kbd> <span>Scroll to top</span></div>

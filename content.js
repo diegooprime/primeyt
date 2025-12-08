@@ -744,6 +744,7 @@
       const watchedIndicator = isWatched ? '<span class="primeyt-watched-icon">✓</span>' : '';
       
       row.innerHTML = `
+        <span class="primeyt-line-number" data-index="${index}">${index}</span>
         <div class="primeyt-video-left">
           ${watchedIndicator}
           <div class="primeyt-video-title" title="${escapeHtml(video.title)}">${escapeHtml(cleanTitle)}</div>

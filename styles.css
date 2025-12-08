@@ -462,6 +462,24 @@ body.primeyt-page-watch .html5-video-player .ytp-chrome-top {
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.1s ease;
+  gap: 12px;
+}
+
+/* Relative line numbers (Vim-style) */
+.primeyt-line-number {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Current line shows 0 or absolute number */
+.primeyt-video-row.primeyt-focused .primeyt-line-number {
+  color: var(--accent-yellow);
+  font-weight: 600;
 }
 
 .primeyt-video-row:first-child {
@@ -1081,4 +1099,84 @@ body.primeyt-page-channel #channel-header-container {
 body.primeyt-page-channel ytd-shelf-renderer:has([title*="Featured"]),
 body.primeyt-page-channel ytd-shelf-renderer:has([title*="channels"]) {
   display: none !important;
+}
+
+/* ========================================
+   VIM-STYLE FILTER BAR (/ search)
+   ======================================== */
+
+.primeyt-filter-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  z-index: 100002;
+  display: none;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+}
+
+.primeyt-filter-bar.active {
+  display: flex;
+}
+
+.primeyt-filter-slash {
+  color: var(--accent-cyan);
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.primeyt-filter-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  padding: 8px 0;
+}
+
+.primeyt-filter-input::placeholder {
+  color: var(--text-muted);
+}
+
+.primeyt-filter-count {
+  color: var(--accent-yellow);
+  font-size: 13px;
+  min-width: 50px;
+}
+
+.primeyt-filter-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Filter match highlighting */
+.primeyt-video-row.primeyt-filter-match {
+  background-color: rgba(97, 175, 239, 0.08);
+}
+
+.primeyt-video-row.primeyt-filter-current {
+  background-color: rgba(97, 175, 239, 0.15);
+  box-shadow: inset 3px 0 0 var(--accent-cyan);
+}
+
+.primeyt-video-row.primeyt-filter-hidden {
+  display: none;
+}
+
+/* Hide line numbers for filtered-out videos */
+.primeyt-video-row.primeyt-filter-hidden .primeyt-line-number {
+  display: none;
+}
+
+/* When filter is active, add padding to list wrapper so content isn't hidden behind filter bar */
+body:has(.primeyt-filter-bar.active) #primeyt-list-wrapper {
+  padding-bottom: 60px !important;
 }
