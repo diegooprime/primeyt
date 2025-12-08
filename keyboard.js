@@ -630,24 +630,274 @@ const PrimeYTKeyboard = (function() {
       addToWatchLaterDirect();
     } else if (state.focusedVideo) {
       // On list page with focused video - click the 3-dot menu
-      const menuBtn = state.focusedVideo.querySelector('ytd-menu-renderer button, #menu button, yt-icon-button button');
-      
-      if (menuBtn) {
-        menuBtn.click();
-        setTimeout(() => {
-          const items = document.querySelectorAll('ytd-menu-service-item-renderer');
-          for (const item of items) {
-            if (item.textContent.toLowerCase().includes('watch later')) {
-              item.click();
-              showToast('✓ Watch Later');
-              return;
-            }
-          }
-          showToast('WL not in menu');
-        }, 400);
-      }
+      addToWatchLaterFromList();
     }
     return true;
+  }
+  
+  function addToWatchLaterFromList() {
+    if (!state.focusedVideo) {
+      showToast('No video selected');
+      return;
+    }
+    
+    console.log('[PrimeYT] Focused video element:', state.focusedVideo.tagName, state.focusedVideo.className);
+    
+    // Check if this is a custom PrimeYT row (simplified view without menu)
+    if (state.focusedVideo.classList.contains('primeyt-video-row')) {
+      // Get video URL from custom row and find original YouTube element
+      const videoUrl = state.focusedVideo.dataset.url;
+      if (!videoUrl) {
+        showToast('No video URL');
+        return;
+      }
+      
+      // Extract video ID from URL
+      const videoId = extractVideoId(videoUrl);
+      console.log('[PrimeYT] Custom row - video ID:', videoId);
+      
+      if (!videoId) {
+        showToast('Invalid video URL');
+        return;
+      }
+      
+      // Find the original YouTube element by video ID
+      const originalElement = findOriginalYouTubeElement(videoId);
+      
+      if (originalElement) {
+        console.log('[PrimeYT] Found original YouTube element:', originalElement.tagName);
+        clickMenuOnElement(originalElement);
+      } else {
+        console.log('[PrimeYT] Original element not found, trying alternate method');
+        // Fallback: try to add via URL navigation workaround
+        showToast('Menu not found');
+      }
+      return;
+    }
+    
+    // Standard YouTube element - find menu button directly
+    clickMenuOnElement(state.focusedVideo);
+  }
+  
+  function extractVideoId(url) {
+    if (!url) return null;
+    try {
+      const urlObj = new URL(url, window.location.origin);
+      // Handle /watch?v=ID format
+      if (urlObj.searchParams.has('v')) {
+        return urlObj.searchParams.get('v');
+      }
+      // Handle /shorts/ID format
+      const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
+      if (shortsMatch) return shortsMatch[1];
+      // Handle youtu.be/ID format
+      const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+      if (shortMatch) return shortMatch[1];
+    } catch (e) {
+      console.log('[PrimeYT] Error extracting video ID:', e);
+    }
+    return null;
+  }
+  
+  function findOriginalYouTubeElement(videoId) {
+    // Look for YouTube elements that contain this video ID in their links
+    const selectors = [
+      'ytd-rich-item-renderer',
+      'ytd-video-renderer', 
+      'ytd-grid-video-renderer',
+      'ytd-playlist-video-renderer'
+    ];
+    
+    for (const selector of selectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const el of elements) {
+        // Check links inside the element
+        const links = el.querySelectorAll('a[href*="watch"]');
+        for (const link of links) {
+          if (link.href && link.href.includes(videoId)) {
+            return el;
+          }
+        }
+      }
+    }
+    return null;
+  }
+  
+  function clickMenuOnElement(element) {
+    // Find the 3-dot menu button on the element
+    const menuSelectors = [
+      // Modern YouTube (2024+) - subscription/home feed
+      'ytd-menu-renderer yt-icon-button#button button',
+      'ytd-menu-renderer yt-icon-button button',
+      'ytd-menu-renderer button[aria-label*="Action" i]',
+      '#menu yt-icon-button#button button',
+      '#menu yt-icon-button button',
+      // Older/alternative selectors
+      'ytd-menu-renderer #button-shape button',
+      'ytd-menu-renderer button[aria-label]',
+      'ytd-menu-renderer button',
+      '#menu button[aria-label]',
+      '#menu button',
+      'yt-icon-button#button button',
+      'yt-icon-button#button',
+      'button[aria-label*="Action" i]',
+      'button[aria-label*="More" i]'
+    ];
+    
+    let menuBtn = null;
+    for (const selector of menuSelectors) {
+      menuBtn = element.querySelector(selector);
+      if (menuBtn) {
+        console.log('[PrimeYT] Found menu with selector:', selector);
+        break;
+      }
+    }
+    
+    // If still not found, try looking for any yt-icon-button within the element
+    if (!menuBtn) {
+      const iconButtons = element.querySelectorAll('yt-icon-button');
+      console.log('[PrimeYT] Found', iconButtons.length, 'yt-icon-buttons in element');
+      for (const ib of iconButtons) {
+        const btn = ib.querySelector('button') || ib;
+        if (btn) {
+          menuBtn = btn;
+          console.log('[PrimeYT] Using yt-icon-button as menu');
+          break;
+        }
+      }
+    }
+    
+    // Last resort: find by aria-label pattern
+    if (!menuBtn) {
+      const allButtons = element.querySelectorAll('button');
+      console.log('[PrimeYT] Searching', allButtons.length, 'buttons for menu');
+      for (const btn of allButtons) {
+        const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+        if (label.includes('action') || label.includes('more') || label.includes('menu')) {
+          menuBtn = btn;
+          console.log('[PrimeYT] Found menu button by aria-label:', label);
+          break;
+        }
+      }
+    }
+    
+    if (!menuBtn) {
+      console.log('[PrimeYT] Menu button not found in element');
+      showToast('Menu not found');
+      return;
+    }
+    
+    console.log('[PrimeYT] Clicking menu button:', menuBtn.tagName);
+    menuBtn.click();
+    
+    // Wait for menu to appear
+    setTimeout(() => {
+      clickWatchLaterInMenu();
+    }, 300);
+  }
+  
+  function clickWatchLaterInMenu() {
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    const tryClick = () => {
+      attempts++;
+      
+      // Find the visible popup menu - YouTube appends these to body or uses iron-dropdown
+      let menuContainer = null;
+      
+      // Check for tp-yt-iron-dropdown (popup menu container)
+      const dropdowns = document.querySelectorAll('tp-yt-iron-dropdown, ytd-popup-container');
+      for (const d of dropdowns) {
+        const style = window.getComputedStyle(d);
+        if (style.display !== 'none' && d.offsetParent !== null) {
+          menuContainer = d;
+          break;
+        }
+      }
+      
+      // Look for menu items - YouTube uses various elements
+      const menuItemSelectors = [
+        'ytd-menu-service-item-renderer',
+        'tp-yt-paper-item',
+        'ytd-menu-navigation-item-renderer',
+        'yt-list-item-view-model'
+      ];
+      
+      let menuItems = [];
+      const searchRoot = menuContainer || document;
+      
+      for (const selector of menuItemSelectors) {
+        menuItems = Array.from(searchRoot.querySelectorAll(selector));
+        // Filter to only visible items
+        menuItems = menuItems.filter(el => {
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && el.offsetParent !== null;
+        });
+        if (menuItems.length > 0) break;
+      }
+      
+      console.log('[PrimeYT] Menu attempt', attempts, '- found', menuItems.length, 'visible items');
+      
+      if (menuItems.length > 0) {
+        // Log what options are available
+        console.log('[PrimeYT] Menu options:', menuItems.map(i => i.textContent?.trim().substring(0, 30)).join(', '));
+      }
+      
+      // First look for direct "Save to Watch later" option
+      for (const item of menuItems) {
+        const text = (item.textContent || '').toLowerCase();
+        const ariaLabel = (item.getAttribute('aria-label') || '').toLowerCase();
+        
+        if ((text.includes('save') && text.includes('watch later')) ||
+            (ariaLabel.includes('save') && ariaLabel.includes('watch later'))) {
+          console.log('[PrimeYT] Found "Save to Watch later", clicking');
+          item.click();
+          showToast('✓ Watch Later');
+          return;
+        }
+      }
+      
+      // Look for just "Watch later" (direct add option)
+      for (const item of menuItems) {
+        const text = (item.textContent || '').toLowerCase().trim();
+        const ariaLabel = (item.getAttribute('aria-label') || '').toLowerCase();
+        
+        // Match "Watch later" but not if it's inside a larger phrase (avoid false matches)
+        if (text === 'watch later' || text.startsWith('watch later') || ariaLabel.includes('watch later')) {
+          console.log('[PrimeYT] Found "Watch later" option, clicking');
+          item.click();
+          showToast('✓ Watch Later');
+          return;
+        }
+      }
+      
+      // Look for "Save" option which opens playlist dialog
+      for (const item of menuItems) {
+        const text = (item.textContent || '').toLowerCase().trim();
+        
+        // "Save" or "Save to playlist" - but avoid "Save to Watch later" (already handled)
+        if ((text === 'save' || text.includes('save to playlist') || text.startsWith('save')) && 
+            !text.includes('watch later')) {
+          console.log('[PrimeYT] Found "Save" option, clicking to open dialog');
+          item.click();
+          // Now wait for playlist dialog
+          setTimeout(() => clickWatchLaterInDialog(), 400);
+          return;
+        }
+      }
+      
+      if (attempts < maxAttempts) {
+        setTimeout(tryClick, 100);
+      } else {
+        console.log('[PrimeYT] Timeout - no Watch Later option found');
+        showToast('Watch Later not in menu');
+        // Try to close menu by pressing Escape
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      }
+    };
+    
+    tryClick();
   }
   
   function addToWatchLaterDirect() {
