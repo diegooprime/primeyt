@@ -231,6 +231,149 @@
   }
   
   // ==========================================
+  // Custom Progress Bar
+  // ==========================================
+  
+  let progressBarCreated = false;
+  let progressAnimationFrame = null;
+  
+  function createProgressBar() {
+    if (progressBarCreated) return;
+    if (!document.body.classList.contains('primeyt-page-watch')) return;
+    
+    const existing = document.getElementById('primeyt-progress-container');
+    if (existing) existing.remove();
+    
+    const container = document.createElement('div');
+    container.id = 'primeyt-progress-container';
+    container.innerHTML = `
+      <div id="primeyt-progress-bar">
+        <div id="primeyt-progress-buffered"></div>
+        <div id="primeyt-progress-played"></div>
+        <div id="primeyt-progress-hover"></div>
+      </div>
+      <div id="primeyt-progress-time"></div>
+    `;
+    
+    document.body.appendChild(container);
+    progressBarCreated = true;
+    
+    const bar = document.getElementById('primeyt-progress-bar');
+    
+    // Dragging support
+    let isDragging = false;
+    
+    bar.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      seek(e);
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        seek(e);
+      }
+      // Show time on hover when over bar
+      const rect = bar.getBoundingClientRect();
+      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        showTimePreview(e, rect);
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+    
+    function seek(e) {
+      const rect = bar.getBoundingClientRect();
+      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const video = document.querySelector('video.html5-main-video');
+      if (video && video.duration) {
+        video.currentTime = percent * video.duration;
+      }
+    }
+    
+    function showTimePreview(e, rect) {
+      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const video = document.querySelector('video.html5-main-video');
+      const timeDisplay = document.getElementById('primeyt-progress-time');
+      const hoverBar = document.getElementById('primeyt-progress-hover');
+      
+      if (video && video.duration && timeDisplay) {
+        const time = percent * video.duration;
+        timeDisplay.textContent = formatTime(time);
+        timeDisplay.style.left = `${e.clientX}px`;
+        timeDisplay.style.opacity = '1';
+        hoverBar.style.width = `${percent * 100}%`;
+        hoverBar.style.opacity = '1';
+      }
+    }
+    
+    // Show time on hover
+    bar.addEventListener('mousemove', (e) => {
+      const rect = bar.getBoundingClientRect();
+      showTimePreview(e, rect);
+    });
+    
+    bar.addEventListener('mouseleave', () => {
+      const timeDisplay = document.getElementById('primeyt-progress-time');
+      const hoverBar = document.getElementById('primeyt-progress-hover');
+      if (timeDisplay) timeDisplay.style.opacity = '0';
+      if (hoverBar) hoverBar.style.opacity = '0';
+    });
+    
+    // Start updating
+    updateProgressBar();
+  }
+  
+  function formatTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+  
+  function updateProgressBar() {
+    if (!document.body.classList.contains('primeyt-page-watch')) {
+      progressAnimationFrame = null;
+      return;
+    }
+    
+    const video = document.querySelector('video.html5-main-video');
+    const playedBar = document.getElementById('primeyt-progress-played');
+    const bufferedBar = document.getElementById('primeyt-progress-buffered');
+    
+    if (video && playedBar && video.duration) {
+      // Update played progress
+      const playedPercent = (video.currentTime / video.duration) * 100;
+      playedBar.style.width = `${playedPercent}%`;
+      
+      // Update buffered progress
+      if (video.buffered.length > 0 && bufferedBar) {
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const bufferedPercent = (bufferedEnd / video.duration) * 100;
+        bufferedBar.style.width = `${bufferedPercent}%`;
+      }
+    }
+    
+    progressAnimationFrame = requestAnimationFrame(updateProgressBar);
+  }
+  
+  function destroyProgressBar() {
+    const container = document.getElementById('primeyt-progress-container');
+    if (container) container.remove();
+    progressBarCreated = false;
+    if (progressAnimationFrame) {
+      cancelAnimationFrame(progressAnimationFrame);
+      progressAnimationFrame = null;
+    }
+  }
+  
+  // ==========================================
   // Shorts Redirect
   // ==========================================
   
@@ -243,26 +386,174 @@
   }
   
   // ==========================================
-  // Auto-Hide Cursor on Video
+  // Custom Caption System (Clean & Simple)
   // ==========================================
   
+  let captionObserver = null;
+  let customCaptionContainer = null;
+  let lastCaptionText = '';
+  let displayedPhrases = [];
+  let captionPollInterval = null;
+  
+  function setupCaptionStyling() {
+    // Hide YouTube's default captions
+    hideYouTubeCaptions();
+    
+    // Create custom caption container
+    if (!customCaptionContainer) {
+      customCaptionContainer = document.createElement('div');
+      customCaptionContainer.id = 'primeyt-captions';
+      document.body.appendChild(customCaptionContainer);
+    }
+    
+    // Reset state
+    displayedPhrases = [];
+    lastCaptionText = '';
+    
+    // Poll for caption changes
+    if (captionPollInterval) clearInterval(captionPollInterval);
+    captionPollInterval = setInterval(updateCustomCaptions, 150);
+  }
+  
+  function hideYouTubeCaptions() {
+    const style = document.createElement('style');
+    style.id = 'primeyt-hide-yt-captions';
+    style.textContent = `
+      .caption-window,
+      .ytp-caption-window-container,
+      .ytp-caption-window-bottom,
+      .ytp-caption-window-top {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `;
+    if (!document.getElementById('primeyt-hide-yt-captions')) {
+      document.head.appendChild(style);
+    }
+  }
+  
+  function updateCustomCaptions() {
+    if (!customCaptionContainer) return;
+    
+    // Get current caption from YouTube
+    const captionSegments = document.querySelectorAll('.ytp-caption-segment');
+    let currentText = '';
+    captionSegments.forEach(seg => {
+      currentText += seg.textContent + ' ';
+    });
+    currentText = currentText.trim();
+    
+    // Don't update if same text
+    if (currentText === lastCaptionText) return;
+    lastCaptionText = currentText;
+    
+    if (currentText) {
+      // Remove overlapping text from previous captions
+      let cleanText = removeOverlap(currentText);
+      
+      if (cleanText) {
+        customCaptionContainer.textContent = cleanText;
+        customCaptionContainer.classList.add('active');
+        
+        // Track displayed phrases (keep last 5)
+        displayedPhrases.push(cleanText);
+        if (displayedPhrases.length > 5) {
+          displayedPhrases.shift();
+        }
+      }
+    } else {
+      customCaptionContainer.classList.remove('active');
+    }
+  }
+  
+  function removeOverlap(newText) {
+    if (displayedPhrases.length === 0) return newText;
+    
+    const lastDisplayed = displayedPhrases[displayedPhrases.length - 1];
+    if (!lastDisplayed) return newText;
+    
+    // Normalize helper
+    const normalize = (str) =>
+      str
+        .toLowerCase()
+        .replace(/[“”"']/g, '')
+        .replace(/[.,!?]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    const lastNorm = normalize(lastDisplayed);
+    const newNorm = normalize(newText);
+    
+    if (!newNorm) return null;
+    
+    // If the new caption is wholly contained in the last one, skip
+    if (lastNorm.includes(newNorm)) return null;
+    
+    const lastTokens = lastNorm.split(' ');
+    const newTokens = newNorm.split(' ');
+    
+    // Find the longest suffix of lastTokens that matches a prefix of newTokens
+    const maxOverlap = Math.min(12, lastTokens.length, newTokens.length - 1);
+    for (let len = maxOverlap; len >= 2; len--) {
+      const suffix = lastTokens.slice(-len).join(' ');
+      const prefix = newTokens.slice(0, len).join(' ');
+      if (suffix === prefix) {
+        // Remove overlap from original newText using token count
+        const originalTokens = newText.split(/\s+/);
+        const cleaned = originalTokens.slice(len).join(' ').trim();
+        return cleaned || null;
+      }
+    }
+    
+    return newText;
+  }
+  
+  function destroyCaptionStyling() {
+    if (captionObserver) {
+      captionObserver.disconnect();
+      captionObserver = null;
+    }
+    if (captionPollInterval) {
+      clearInterval(captionPollInterval);
+      captionPollInterval = null;
+    }
+    if (customCaptionContainer) {
+      customCaptionContainer.remove();
+      customCaptionContainer = null;
+    }
+    const hideStyle = document.getElementById('primeyt-hide-yt-captions');
+    if (hideStyle) hideStyle.remove();
+    lastCaptionText = '';
+    displayedPhrases = [];
+  }
+  
+  // ==========================================
+  // Auto-Hide Cursor (Entire Page)
+  // ==========================================
+  
+  let cursorHideSetup = false;
+  
   function setupCursorHide() {
-    const player = document.querySelector('#movie_player');
-    if (!player) return;
+    if (cursorHideSetup) return;
+    cursorHideSetup = true;
     
     function showCursor() {
-      player.classList.remove('primeyt-hide-cursor');
+      document.body.classList.remove('primeyt-hide-cursor');
       clearTimeout(cursorHideTimer);
       cursorHideTimer = setTimeout(() => {
-        const video = document.querySelector('video.html5-main-video');
-        if (video && !video.paused) {
-          player.classList.add('primeyt-hide-cursor');
-        }
+        document.body.classList.add('primeyt-hide-cursor');
       }, 2000);
     }
     
-    player.addEventListener('mousemove', showCursor);
-    player.addEventListener('mousedown', showCursor);
+    // Show cursor on any mouse movement
+    document.addEventListener('mousemove', showCursor);
+    document.addEventListener('mousedown', showCursor);
+    
+    // Start with cursor hidden after initial delay
+    cursorHideTimer = setTimeout(() => {
+      document.body.classList.add('primeyt-hide-cursor');
+    }, 2000);
   }
   
   // ==========================================
@@ -280,6 +571,10 @@
 
   function isSubscriptionsPage() {
     return window.location.pathname === '/feed/subscriptions';
+  }
+
+  function isSearchPage() {
+    return window.location.pathname === '/results';
   }
 
   function scheduleBuildCustomVideoList(delay = 500) {
@@ -357,7 +652,7 @@
   }
   
   function buildCustomVideoList() {
-    if (!isSubscriptionsPage()) return;
+    if (!isSubscriptionsPage() && !isSearchPage()) return;
     
     // Don't rebuild if list already exists and has videos
     const existingList = document.getElementById('primeyt-video-list');
@@ -377,7 +672,8 @@
       combined.push(video);
     });
 
-    console.log(`[PrimeYT] Build attempt ${buildAttempts + 1}, found ${combined.length} videos (${videosFromData.length} from data, ${videosFromDom.length} from DOM)`);
+    const pageType = isSearchPage() ? 'search' : 'subscriptions';
+    console.log(`[PrimeYT] Build attempt ${buildAttempts + 1} (${pageType}), found ${combined.length} videos (${videosFromData.length} from data, ${videosFromDom.length} from DOM)`);
 
     if (combined.length === 0) {
       buildAttempts++;
@@ -386,7 +682,8 @@
       } else {
         console.log('[PrimeYT] Unable to build custom list after multiple attempts');
         console.log('[PrimeYT] Debug: ytInitialData available:', !!window.ytInitialData);
-        console.log('[PrimeYT] Debug: DOM elements found:', document.querySelectorAll('ytd-rich-item-renderer').length);
+        console.log('[PrimeYT] Debug: DOM rich-item elements:', document.querySelectorAll('ytd-rich-item-renderer').length);
+        console.log('[PrimeYT] Debug: DOM video-renderer elements:', document.querySelectorAll('ytd-video-renderer').length);
       }
       return;
     }
@@ -396,12 +693,24 @@
     buildAttempts = 0;
   }
 
+  function getVideoIdFromUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.searchParams.get('v');
+    } catch (e) {
+      return null;
+    }
+  }
+
   function renderCustomVideoList(videos) {
     // Remove existing list if present
     const existingList = document.getElementById('primeyt-video-list');
     if (existingList) {
       existingList.remove();
     }
+    
+    // Get set of watched video IDs for quick lookup
+    const watchedIds = window.PrimeYTStats ? window.PrimeYTStats.getWatchedVideoIds() : new Set();
     
     const list = document.createElement('div');
     list.id = 'primeyt-video-list';
@@ -411,6 +720,14 @@
       row.className = 'primeyt-video-row';
       row.dataset.url = video.url;
       row.dataset.index = index;
+      
+      // Check if video is watched
+      const videoId = getVideoIdFromUrl(video.url);
+      const isWatched = videoId && watchedIds.has(videoId);
+      
+      if (isWatched) {
+        row.classList.add('primeyt-watched');
+      }
       
       // Clean title and limit to 6 words
       let cleanTitle = video.title.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
@@ -423,8 +740,12 @@
       const durationMin = formatDurationToMinutes(video.duration);
       const dateStr = formatRelativeDate(video.time);
       
+      // Watched indicator (checkmark)
+      const watchedIndicator = isWatched ? '<span class="primeyt-watched-icon">✓</span>' : '';
+      
       row.innerHTML = `
         <div class="primeyt-video-left">
+          ${watchedIndicator}
           <div class="primeyt-video-title" title="${escapeHtml(video.title)}">${escapeHtml(cleanTitle)}</div>
         </div>
         <div class="primeyt-video-right">
@@ -816,6 +1137,8 @@
       <div class="primeyt-home-subtitle">Mindful YouTube</div>
       <div class="primeyt-home-keys">
         <div><kbd>Space</kbd> <kbd>s</kbd> Subscriptions</div>
+        <div><kbd>Space</kbd> <kbd>w</kbd> Watch Later</div>
+        <div><kbd>Space</kbd> <kbd>p</kbd> Studio</div>
         <div><kbd>Space</kbd> <kbd>f</kbd> <kbd>f</kbd> Search</div>
         <div><kbd>Space</kbd> <kbd>?</kbd> Help</div>
       </div>
@@ -852,12 +1175,16 @@
     if (path === '/watch') {
       // Delay to ensure player is loaded
       setTimeout(enableTheaterMode, 500);
-      setTimeout(setupCursorHide, 1000);
+      setTimeout(createProgressBar, 800);
+      setTimeout(setupCaptionStyling, 1000);
       destroyCustomList();
+    } else {
+      destroyProgressBar();
+      destroyCaptionStyling();
     }
     
-    // Handle subscriptions page
-    if (isSubscriptionsPage()) {
+    // Handle subscriptions page and search page
+    if (isSubscriptionsPage() || isSearchPage()) {
       resetBuildState();
       scheduleBuildCustomVideoList(800);
     } else if (path !== '/watch' && path !== '/') {
@@ -889,7 +1216,7 @@
     
     // Watch for new videos being added to the feed (infinite scroll)
     const feedObserver = new MutationObserver((mutations) => {
-      if (!isSubscriptionsPage()) return;
+      if (!isSubscriptionsPage() && !isSearchPage()) return;
       
       let shouldRebuild = false;
       for (const mutation of mutations) {
@@ -898,7 +1225,9 @@
             if (node.nodeType === Node.ELEMENT_NODE) {
               if (node.matches && (
                 node.matches('ytd-rich-item-renderer') ||
-                node.querySelector?.('ytd-rich-item-renderer')
+                node.matches('ytd-video-renderer') ||
+                node.querySelector?.('ytd-rich-item-renderer') ||
+                node.querySelector?.('ytd-video-renderer')
               )) {
                 shouldRebuild = true;
                 break;
@@ -958,7 +1287,32 @@
     updateStatsWidget();
     setInterval(updateStatsWidget, 5000);
     
+    // Block space key from reaching YouTube player
+    setupSpaceBlocker();
+    
+    // Setup cursor auto-hide (entire page)
+    setupCursorHide();
+    
     console.log('[PrimeYT] Ready. Press Space + ? for keyboard shortcuts.');
+  }
+  
+  // Block space from YouTube's player when we're using leader key
+  function setupSpaceBlocker() {
+    // Capture phase, highest priority
+    window.addEventListener('keydown', function(e) {
+      if (e.key === ' ' && window.location.pathname === '/watch') {
+        const target = e.target;
+        const tagName = target.tagName.toLowerCase();
+        
+        // Allow space in inputs
+        if (tagName === 'input' || tagName === 'textarea' || target.isContentEditable) {
+          return;
+        }
+        
+        // Block it
+        e.stopPropagation();
+      }
+    }, true);
   }
   
   init();

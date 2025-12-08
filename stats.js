@@ -194,6 +194,15 @@ const PrimeYTStats = (function() {
     return { last24h, last7d };
   }
   
+  function isVideoWatched(videoId) {
+    if (!videoId) return false;
+    return state.watchedVideos.some(v => v.id === videoId);
+  }
+  
+  function getWatchedVideoIds() {
+    return new Set(state.watchedVideos.map(v => v.id));
+  }
+  
   // ==========================================
   // Page Change Detection
   // ==========================================
@@ -246,7 +255,9 @@ const PrimeYTStats = (function() {
     getTimeStats,
     getWatchedVideosCount,
     trackVideo,
-    getVideoId
+    getVideoId,
+    isVideoWatched,
+    getWatchedVideoIds
   };
 })();
 

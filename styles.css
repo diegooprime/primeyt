@@ -23,17 +23,52 @@
    ======================================== */
 
 html,
-body {
+body,
+html[dark],
+[dark] {
   background-color: var(--bg-primary) !important;
   background: var(--bg-primary) !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
+/* Cover any white gaps at the top with themed overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: var(--bg-primary);
+  z-index: 9998;
+  pointer-events: none;
+}
+
+/* Hide the cover on watch page so progress bar shows */
+body.primeyt-page-watch::before,
+body.primeyt-page-search::before {
+  display: none;
+}
+
 ytd-app,
 #content,
-#page-manager {
+#page-manager,
+ytd-browse,
+ytd-two-column-browse-results-renderer,
+yt-page-header-renderer,
+#header,
+#tabs-container,
+ytd-tabbed-page-header,
+#contentContainer,
+.ytd-app,
+#container.ytd-app,
+yt-image,
+#background,
+ytd-masthead + *,
+#page-manager > * {
   background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
 }
 
 /* ========================================
@@ -69,6 +104,33 @@ ytd-masthead-skeleton,
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
+  background: var(--bg-primary) !important;
+}
+
+/* Force theme on any residual top-level containers */
+#contentContainer,
+ytd-app > #content,
+ytd-app > #container,
+ytd-app > *:first-child,
+body > ytd-app,
+body > ytd-app > *,
+#guide-wrapper,
+#guide-inner-content,
+ytd-app #guide-wrapper,
+#header-bar,
+.ytd-app,
+ytd-app #guide,
+ytd-app #guide-button {
+  background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
+}
+
+/* Theme the topbar/header wrapper area even when hidden */
+#masthead-positioner,
+#masthead-positioner-height-offset,
+.masthead-positioner-height-offset {
+  background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
 }
 
 ytd-app {
@@ -138,11 +200,40 @@ body.primeyt-page-watch ytd-text-inline-expander {
   display: none !important;
 }
 
-/* Video info section styling */
-body.primeyt-page-watch #below {
-  max-width: 1200px !important;
-  margin: 0 auto !important;
-  padding: 16px 24px !important;
+/* Hide ALL video info below the player - you already clicked it */
+body.primeyt-page-watch #below,
+body.primeyt-page-watch #above-the-fold,
+body.primeyt-page-watch #bottom-row,
+body.primeyt-page-watch ytd-watch-metadata,
+body.primeyt-page-watch #meta,
+body.primeyt-page-watch #info-contents {
+  display: none !important;
+}
+
+/* Make video player fill the entire viewport */
+body.primeyt-page-watch #full-bleed-container,
+body.primeyt-page-watch #player-theater-container,
+body.primeyt-page-watch #player-container-outer,
+body.primeyt-page-watch #player-container-inner,
+body.primeyt-page-watch #player-container,
+body.primeyt-page-watch #movie_player,
+body.primeyt-page-watch .html5-video-player,
+body.primeyt-page-watch .html5-video-container,
+body.primeyt-page-watch video.html5-main-video {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 100vh !important;
+}
+
+body.primeyt-page-watch ytd-watch-flexy[theater] #player-theater-container {
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+
+body.primeyt-page-watch #primary,
+body.primeyt-page-watch #primary-inner {
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 /* CRITICAL: Ensure video elements are NEVER hidden on watch page */
@@ -249,24 +340,41 @@ ytd-miniplayer-renderer {
    VIDEO PLAYER STYLING
    ======================================== */
 
-/* Don't override player background - it can cover the video */
-
-.ytp-progress-bar-container .ytp-play-progress {
-  background-color: var(--accent-red) !important;
+/* Hide ALL player controls - keyboard only */
+body.primeyt-page-watch .ytp-chrome-bottom,
+body.primeyt-page-watch .ytp-chrome-top,
+body.primeyt-page-watch .ytp-gradient-bottom,
+body.primeyt-page-watch .ytp-gradient-top,
+body.primeyt-page-watch .ytp-show-cards-title,
+body.primeyt-page-watch .ytp-paid-content-overlay,
+body.primeyt-page-watch .ytp-button,
+body.primeyt-page-watch .ytp-left-controls,
+body.primeyt-page-watch .ytp-right-controls,
+body.primeyt-page-watch .ytp-time-display,
+body.primeyt-page-watch .ytp-progress-bar-container,
+body.primeyt-page-watch .ytp-scrubber-container {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
-.ytp-progress-bar-container .ytp-load-progress {
-  background-color: var(--bg-hover) !important;
+/* Also hide the "Includes paid promotion" banner */
+body.primeyt-page-watch .ytp-paid-content-overlay,
+body.primeyt-page-watch .ytp-chrome-top-buttons,
+body.primeyt-page-watch .ytp-title {
+  display: none !important;
 }
 
-.ytp-scrubber-button {
-  background-color: var(--accent-red) !important;
+/* Nuclear option - hide entire control layers */
+body.primeyt-page-watch .html5-video-player .ytp-chrome-bottom,
+body.primeyt-page-watch .html5-video-player .ytp-chrome-top {
+  display: none !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }
 
-.ytp-time-display {
-  color: var(--text-primary) !important;
-}
-
+/* Settings menu styling (for when accessed via keyboard) */
 .ytp-settings-menu,
 .ytp-panel {
   background-color: var(--bg-secondary) !important;
@@ -279,78 +387,47 @@ ytd-miniplayer-renderer {
 }
 
 /* ========================================
-   WATCH PAGE - VIDEO INFO STYLING
+   CUSTOM CAPTIONS (CLEAN & FIXED WIDTH)
    ======================================== */
 
-/* Video title */
-body.primeyt-page-watch h1.ytd-watch-metadata yt-formatted-string,
-body.primeyt-page-watch #title.ytd-watch-metadata,
-body.primeyt-page-watch .ytd-watch-metadata h1 {
-  color: var(--text-primary) !important;
-  font-size: 18px !important;
-  font-weight: 500 !important;
+#primeyt-captions {
+  position: fixed;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999998;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  
+  /* Fixed width - no jumping */
+  width: 70%;
+  max-width: 900px;
+  min-height: 44px;
+  
+  /* Text styling */
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.95);
+  text-align: center;
+  letter-spacing: 0.01em;
+  
+  /* Clean minimal look - no background box */
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8),
+               0 2px 20px rgba(0, 0, 0, 0.6);
 }
 
-/* Channel info */
-body.primeyt-page-watch #channel-name a,
-body.primeyt-page-watch ytd-channel-name a,
-body.primeyt-page-watch #owner #text a {
-  color: var(--text-primary) !important;
+#primeyt-captions.active {
+  opacity: 1;
 }
 
-/* View count and date */
-body.primeyt-page-watch #info-strings span,
-body.primeyt-page-watch #info-container yt-formatted-string {
-  color: var(--text-secondary) !important;
-}
+/* ========================================
+   WATCH PAGE - PURE VIDEO, NOTHING ELSE
+   ======================================== */
 
-/* Hide tons of clutter on watch page */
-body.primeyt-page-watch #owner-sub-count,
-body.primeyt-page-watch #sponsor-button,
-body.primeyt-page-watch ytd-button-renderer:has([aria-label*="Thanks"]),
-body.primeyt-page-watch ytd-button-renderer:has([aria-label*="Clip"]),
-body.primeyt-page-watch ytd-download-button-renderer,
-body.primeyt-page-watch #subscribe-button,
-body.primeyt-page-watch ytd-subscription-notification-toggle-button-renderer,
-body.primeyt-page-watch #notification-preference-button,
-body.primeyt-page-watch #channel-thumbnail,
-body.primeyt-page-watch #avatar,
-body.primeyt-page-watch ytd-video-description-infocards-section-renderer,
-body.primeyt-page-watch ytd-info-panel-content-renderer,
-body.primeyt-page-watch #clarify-box {
-  display: none !important;
-}
-
-/* Simplify owner row */
-body.primeyt-page-watch #owner {
-  padding: 8px 0 !important;
-}
-
-/* Action buttons styling */
-body.primeyt-page-watch #actions ytd-menu-renderer,
-body.primeyt-page-watch #top-level-buttons-computed {
-  display: flex !important;
-  gap: 8px !important;
-}
-
-body.primeyt-page-watch ytd-menu-renderer yt-button-shape button,
-body.primeyt-page-watch ytd-segmented-like-dislike-button-renderer button,
-body.primeyt-page-watch #segmented-like-button button,
-body.primeyt-page-watch #segmented-dislike-button button {
-  background-color: var(--bg-tertiary) !important;
-  color: var(--text-primary) !important;
-  border-radius: 18px !important;
-}
-
-body.primeyt-page-watch #segmented-like-button button[aria-pressed="true"] {
-  color: var(--accent-blue) !important;
-}
-
-/* Watch metadata container */
-body.primeyt-page-watch #above-the-fold {
-  padding: 12px 0 !important;
-  border-bottom: 1px solid var(--border-color) !important;
-}
+/* All metadata styling removed - we hide everything below the video */
 
 /* ========================================
    CUSTOM VIDEO LIST (SUBSCRIPTIONS PAGE)
@@ -399,6 +476,26 @@ body.primeyt-page-watch #above-the-fold {
   flex: 1;
   min-width: 0;
   margin-right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Watched indicator */
+.primeyt-watched-icon {
+  color: var(--accent-green);
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+/* Dim watched videos slightly */
+.primeyt-video-row.primeyt-watched {
+  opacity: 0.6;
+}
+
+.primeyt-video-row.primeyt-watched:hover {
+  opacity: 0.85;
 }
 
 .primeyt-video-right {
@@ -449,11 +546,18 @@ body.primeyt-page-watch #above-the-fold {
   box-shadow: inset 3px 0 0 var(--accent-blue);
 }
 
-/* Hide YouTube's grid when our list is active - ONLY on subscriptions page */
+/* Hide YouTube's grid when our list is active - subscriptions and search pages */
 body.primeyt-list-active.primeyt-page-subscriptions ytd-browse,
 body.primeyt-list-active.primeyt-page-subscriptions ytd-rich-grid-renderer,
 body.primeyt-list-active.primeyt-page-subscriptions ytd-section-list-renderer,
 body.primeyt-list-active.primeyt-page-subscriptions #contents.ytd-rich-grid-renderer {
+  display: none !important;
+}
+
+/* Hide YouTube's search results when our list is active */
+body.primeyt-list-active.primeyt-page-search ytd-search,
+body.primeyt-list-active.primeyt-page-search ytd-two-column-search-results-renderer,
+body.primeyt-list-active.primeyt-page-search ytd-section-list-renderer {
   display: none !important;
 }
 
@@ -501,36 +605,7 @@ body.primeyt-list-active.primeyt-page-subscriptions #contents.ytd-rich-grid-rend
    SEARCH RESULTS PAGE
    ======================================== */
 
-body.primeyt-page-search ytd-search #contents.ytd-section-list-renderer {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-body.primeyt-page-search ytd-video-renderer ytd-thumbnail,
-body.primeyt-page-search ytd-video-renderer #thumbnail {
-  display: none !important;
-}
-
-body.primeyt-page-search ytd-video-renderer #dismissible {
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-body.primeyt-page-search ytd-video-renderer {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-body.primeyt-page-search ytd-video-renderer:hover {
-  background-color: var(--bg-secondary);
-}
-
-body.primeyt-page-search ytd-channel-renderer,
-body.primeyt-page-search ytd-shelf-renderer,
-body.primeyt-page-search ytd-horizontal-card-list-renderer {
-  display: none !important;
-}
+/* Search page uses the same custom list as subscriptions - see primeyt-list-active rules above */
 
 /* ========================================
    PLAYLIST PAGES
@@ -760,10 +835,6 @@ body.primeyt-page-watch #primeyt-stats {
   overflow-y: auto;
 }
 
-.primeyt-help-section:last-child {
-  grid-column: 1 / -1;
-}
-
 .primeyt-help-title {
   font-size: 11px;
   font-weight: 600;
@@ -824,11 +895,113 @@ body.primeyt-page-watch #primeyt-stats {
 }
 
 /* ========================================
-   AUTO-HIDE CURSOR ON VIDEO
+   CUSTOM PROGRESS BAR (TOP)
    ======================================== */
 
-.primeyt-hide-cursor,
-.primeyt-hide-cursor * {
+#primeyt-progress-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  z-index: 999999;
+  transition: height 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#primeyt-progress-container:hover {
+  height: 18px;
+}
+
+#primeyt-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: rgba(30, 33, 39, 0.95);
+  cursor: pointer;
+}
+
+#primeyt-progress-buffered {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(92, 99, 112, 0.4);
+  pointer-events: none;
+  transition: width 0.1s linear;
+}
+
+#primeyt-progress-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+  pointer-events: none;
+  box-shadow: 0 0 12px var(--accent-cyan);
+}
+
+/* Scrubber dot */
+#primeyt-progress-played::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  width: 16px;
+  height: 16px;
+  background: var(--accent-cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--accent-cyan), 0 0 20px rgba(86, 182, 194, 0.5);
+  transition: transform 0.15s ease;
+}
+
+#primeyt-progress-container:hover #primeyt-progress-played::after {
+  transform: translateY(-50%) scale(1);
+}
+
+#primeyt-progress-hover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+#primeyt-progress-time {
+  position: fixed;
+  top: 24px;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  border: 1px solid var(--border-color);
+  z-index: 1000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   AUTO-HIDE CURSOR (ENTIRE PAGE)
+   ======================================== */
+
+body.primeyt-hide-cursor,
+body.primeyt-hide-cursor *,
+body.primeyt-hide-cursor *::before,
+body.primeyt-hide-cursor *::after {
   cursor: none !important;
 }
 
