@@ -1483,15 +1483,7 @@
     const message = document.createElement('div');
     message.id = 'primeyt-home-message';
     message.innerHTML = `
-      <div class="primeyt-home-title">PrimeYT</div>
-      <div class="primeyt-home-subtitle">Mindful YouTube</div>
-      <div class="primeyt-home-keys">
-        <div><kbd>Space</kbd> <kbd>s</kbd> Subscriptions</div>
-        <div><kbd>Space</kbd> <kbd>w</kbd> Watch Later</div>
-        <div><kbd>Space</kbd> <kbd>p</kbd> Studio</div>
-        <div><kbd>Space</kbd> <kbd>f</kbd> <kbd>f</kbd> Search</div>
-        <div><kbd>Space</kbd> <kbd>?</kbd> Help</div>
-      </div>
+      <div class="primeyt-home-intent">Be intentional</div>
     `;
     
     document.body.appendChild(message);

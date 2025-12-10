@@ -690,30 +690,11 @@ body.primeyt-list-active.primeyt-page-playlist #contents.ytd-playlist-video-list
   z-index: 100;
 }
 
-.primeyt-home-title {
-  font-size: 32px;
-  margin-bottom: 16px;
-  color: var(--text-primary);
-}
-
-.primeyt-home-subtitle {
-  font-size: 14px;
-  margin-bottom: 24px;
-  color: var(--text-secondary);
-}
-
-.primeyt-home-keys {
-  font-size: 12px;
+.primeyt-home-intent {
+  font-size: 18px;
   color: var(--text-muted);
-  line-height: 2.2;
-}
-
-.primeyt-home-keys kbd {
-  background: var(--bg-tertiary);
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin: 0 2px;
-  color: var(--text-primary);
+  font-weight: 400;
+  letter-spacing: 0.02em;
 }
 
 /* ========================================
