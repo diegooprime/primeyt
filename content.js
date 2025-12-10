@@ -263,9 +263,12 @@
     const timeStats = document.createElement('div');
     timeStats.id = 'primeyt-video-time-stats';
     timeStats.innerHTML = `
-      <span id="primeyt-elapsed">0:00</span>
+      <span id="primeyt-elapsed-secs">0</span>
       <span class="primeyt-time-sep">/</span>
-      <span id="primeyt-remaining">0:00</span>
+      <span id="primeyt-total-secs">0</span>
+      <span class="primeyt-time-sep">|</span>
+      <span id="primeyt-remaining-secs">0</span>
+      <span class="primeyt-time-sep">|</span>
       <span id="primeyt-percent">0%</span>
     `;
     document.body.appendChild(timeStats);
@@ -382,17 +385,23 @@
       }
       
       // Update time stats display
-      const elapsedEl = document.getElementById('primeyt-elapsed');
-      const remainingEl = document.getElementById('primeyt-remaining');
+      const elapsedEl = document.getElementById('primeyt-elapsed-secs');
+      const totalEl = document.getElementById('primeyt-total-secs');
+      const remainingEl = document.getElementById('primeyt-remaining-secs');
       const percentEl = document.getElementById('primeyt-percent');
       
-      if (elapsedEl && remainingEl && percentEl) {
+      if (elapsedEl && totalEl && remainingEl && percentEl) {
         const elapsed = video.currentTime;
+        const total = video.duration;
         const remaining = video.duration - video.currentTime;
+        const playbackRate = video.playbackRate || 1;
+        // Remaining time adjusted for playback speed
+        const adjustedRemaining = remaining / playbackRate;
         const percent = Math.round(playedPercent);
         
-        elapsedEl.textContent = formatTimeMinutes(elapsed);
-        remainingEl.textContent = formatTimeMinutes(remaining);
+        elapsedEl.textContent = formatTime(elapsed);
+        totalEl.textContent = formatTime(total);
+        remainingEl.textContent = formatTime(adjustedRemaining);
         percentEl.textContent = `${percent}%`;
       }
     }

@@ -1101,7 +1101,7 @@ body.primeyt-page-watch #primeyt-stats {
   z-index: 999999;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-family: 'JetBrains Mono', 'SF Mono', monospace;
   font-size: 13px;
   background: rgba(33, 37, 43, 0.85);
@@ -1111,8 +1111,17 @@ body.primeyt-page-watch #primeyt-stats {
   pointer-events: none;
 }
 
-#primeyt-elapsed {
+#primeyt-elapsed-secs {
   color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+#primeyt-total-secs {
+  color: var(--text-secondary);
+}
+
+#primeyt-remaining-secs {
+  color: var(--accent-yellow);
   font-weight: 600;
 }
 
@@ -1120,16 +1129,9 @@ body.primeyt-page-watch #primeyt-stats {
   color: var(--text-muted);
 }
 
-#primeyt-remaining {
-  color: var(--text-secondary);
-}
-
 #primeyt-percent {
   color: var(--accent-green);
   font-weight: 600;
-  margin-left: 6px;
-  padding-left: 10px;
-  border-left: 1px solid var(--border-color);
 }
 
 /* ========================================
