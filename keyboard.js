@@ -294,8 +294,9 @@ const PrimeYTKeyboard = (function() {
     hideLeaderIndicator();
   }
   
-  function isTyping(element) {
-    const tagName = element.tagName.toLowerCase();
+function isTyping(element) {
+  if (!element || !element.tagName) return false;
+  const tagName = element.tagName.toLowerCase();
     const isEditable = element.isContentEditable;
     const isInput = tagName === 'input' || tagName === 'textarea';
     const isSearchInput = element.id === 'primeyt-search-input';

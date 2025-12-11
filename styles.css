@@ -454,6 +454,27 @@ body.primeyt-page-watch .html5-video-player .ytp-chrome-top {
   padding: 0 24px;
 }
 
+/* Cached list indicator - subtle top border */
+#primeyt-video-list.primeyt-cached {
+  position: relative;
+}
+
+#primeyt-video-list.primeyt-cached::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-blue) 0%, transparent 100%);
+  animation: primeyt-cache-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes primeyt-cache-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
 .primeyt-video-row {
   display: flex;
   align-items: center;

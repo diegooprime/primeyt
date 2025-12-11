@@ -628,9 +628,313 @@
   
   let customListBuilt = false;
   let buildAttempts = 0;
-  let buildTimeout = null;
+  let buildDebounceTimer = null;
+  let isBuilding = false;
   let durationCache = new Map(); // videoId -> duration
   let durationUpdateInterval = null;
+  
+  // Cache for collectVideosFromData to avoid repeated traversal
+  let videoDataCache = { key: '', videos: [] };
+  
+  // LocalStorage cache keys
+  const CACHE_KEY_SUBSCRIPTIONS = 'primeyt_cache_subscriptions';
+  const CACHE_KEY_SEARCH = 'primeyt_cache_search';
+  const CACHE_KEY_PLAYLIST = 'primeyt_cache_playlist';
+  const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes
+  
+  // ==========================================
+  // Persistent Video List Cache (localStorage)
+  // ==========================================
+  
+  function getCacheKey() {
+    if (isSubscriptionsPage()) return CACHE_KEY_SUBSCRIPTIONS;
+    if (isSearchPage()) return CACHE_KEY_SEARCH + '_' + window.location.search;
+    if (isPlaylistPage()) return CACHE_KEY_PLAYLIST + '_' + window.location.search;
+    return null;
+  }
+  
+  function saveVideoListToCache(videos) {
+    const key = getCacheKey();
+    if (!key || !videos || videos.length === 0) return;
+    
+    try {
+      const cacheData = {
+        timestamp: Date.now(),
+        videos: videos.slice(0, 100) // Limit to 100 videos to save space
+      };
+      localStorage.setItem(key, JSON.stringify(cacheData));
+    } catch (e) {
+      // localStorage might be full or disabled
+      console.log('[PrimeYT] Could not cache video list:', e.message);
+    }
+  }
+  
+  function loadVideoListFromCache() {
+    const key = getCacheKey();
+    if (!key) return null;
+    
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+      
+      const cacheData = JSON.parse(cached);
+      
+      // Check if cache is still valid (within max age)
+      if (Date.now() - cacheData.timestamp > CACHE_MAX_AGE) {
+        localStorage.removeItem(key);
+        return null;
+      }
+      
+      return cacheData.videos;
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  function showCachedListImmediately() {
+    if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage()) return false;
+    
+    // Don't show cached if list already exists
+    if (document.getElementById('primeyt-video-list')) return false;
+    
+    // For subscriptions, try in-memory prefetched data first (fastest)
+    let cachedVideos = null;
+    if (isSubscriptionsPage()) {
+      cachedVideos = loadPrefetchedData();
+    } else {
+      cachedVideos = loadVideoListFromCache();
+    }
+    
+    if (!cachedVideos || cachedVideos.length === 0) return false;
+    
+    console.log(`[PrimeYT] Showing ${cachedVideos.length} cached videos instantly`);
+    renderCustomVideoList(cachedVideos, true); // true = isCached
+    return true;
+  }
+  
+  function clearOldCaches() {
+    // Clean up old search/playlist caches to prevent localStorage bloat
+    try {
+      const keysToCheck = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith(CACHE_KEY_SEARCH) || key.startsWith(CACHE_KEY_PLAYLIST))) {
+          keysToCheck.push(key);
+        }
+      }
+      
+      keysToCheck.forEach(key => {
+        try {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            const data = JSON.parse(cached);
+            if (Date.now() - data.timestamp > CACHE_MAX_AGE) {
+              localStorage.removeItem(key);
+            }
+          }
+        } catch (e) {}
+      });
+    } catch (e) {}
+  }
+  
+  // ==========================================
+  // Background Worker Cache Integration
+  // ==========================================
+  
+  let backgroundCacheData = null; // Cache from background worker
+  let backgroundCacheLoaded = false;
+  
+  // Load cache from background worker immediately
+  function loadBackgroundCache() {
+    if (backgroundCacheLoaded) return Promise.resolve(backgroundCacheData);
+    
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'GET_CACHED_SUBSCRIPTIONS' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.log('[PrimeYT] Background cache unavailable:', chrome.runtime.lastError.message);
+            resolve(null);
+            return;
+          }
+          
+          if (response && response.videos && response.videos.length > 0) {
+            // Check if cache is still valid (within 30 minutes)
+            if (Date.now() - response.timestamp < 30 * 60 * 1000) {
+              backgroundCacheData = response.videos;
+              console.log(`[PrimeYT] Loaded ${response.videos.length} videos from background cache`);
+            }
+          }
+          backgroundCacheLoaded = true;
+          resolve(backgroundCacheData);
+        });
+      } catch (e) {
+        console.log('[PrimeYT] Background cache error:', e.message);
+        resolve(null);
+      }
+    });
+  }
+  
+  // Trigger background sync if needed
+  function triggerBackgroundSync() {
+    try {
+      chrome.runtime.sendMessage({ type: 'FORCE_SYNC' }, (response) => {
+        if (response && response.videos) {
+          backgroundCacheData = response.videos;
+          console.log(`[PrimeYT] Background sync complete: ${response.videos.length} videos`);
+        }
+      });
+    } catch (e) {}
+  }
+  
+  // ==========================================
+  // In-Page Prefetch (Fallback)
+  // ==========================================
+  
+  let prefetchInProgress = false;
+  let prefetchedData = null; // In-memory cache for instant access
+  
+  function prefetchSubscriptions() {
+    // Don't prefetch if already on subscriptions or if prefetch in progress
+    if (isSubscriptionsPage() || prefetchInProgress) return;
+    
+    // Check if we already have fresh background cache
+    if (backgroundCacheData && backgroundCacheData.length > 0) {
+      prefetchedData = backgroundCacheData;
+      console.log('[PrimeYT] Using background worker cache');
+      return;
+    }
+    
+    // Check if we already have fresh localStorage cache
+    try {
+      const cached = localStorage.getItem(CACHE_KEY_SUBSCRIPTIONS);
+      if (cached) {
+        const data = JSON.parse(cached);
+        // If cache is less than 5 minutes old, skip prefetch
+        if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+          prefetchedData = data.videos;
+          console.log('[PrimeYT] Subscriptions cache still fresh, skipping prefetch');
+          return;
+        }
+      }
+    } catch (e) {}
+    
+    prefetchInProgress = true;
+    console.log('[PrimeYT] Background prefetching subscriptions...');
+    
+    fetch('/feed/subscriptions', {
+      credentials: 'include',
+      cache: 'no-cache' // Get fresh data
+    })
+    .then(response => response.text())
+    .then(html => {
+      // Extract ytInitialData from the HTML
+      const videos = parseVideosFromHTML(html);
+      
+      if (videos && videos.length > 0) {
+        // Save to localStorage
+        const cacheData = {
+          timestamp: Date.now(),
+          videos: videos.slice(0, 100)
+        };
+        localStorage.setItem(CACHE_KEY_SUBSCRIPTIONS, JSON.stringify(cacheData));
+        
+        // Keep in memory for even faster access
+        prefetchedData = videos;
+        
+        console.log(`[PrimeYT] Prefetched ${videos.length} subscription videos`);
+      }
+    })
+    .catch(err => {
+      console.log('[PrimeYT] Prefetch failed:', err.message);
+    })
+    .finally(() => {
+      prefetchInProgress = false;
+    });
+  }
+  
+  function parseVideosFromHTML(html) {
+    // Extract ytInitialData from the page HTML
+    const match = html.match(/var ytInitialData = ({.+?});<\/script>/s);
+    if (!match) {
+      // Try alternative pattern
+      const altMatch = html.match(/ytInitialData\s*=\s*({.+?});/s);
+      if (!altMatch) return [];
+      try {
+        const data = JSON.parse(altMatch[1]);
+        return extractVideosFromData(data);
+      } catch (e) {
+        return [];
+      }
+    }
+    
+    try {
+      const data = JSON.parse(match[1]);
+      return extractVideosFromData(data);
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  function extractVideosFromData(data) {
+    // Simplified version of collectVideosFromData for prefetched data
+    const videos = [];
+    const stack = [data];
+    const MAX_VIDEOS = 100;
+    const MAX_NODES = 5000;
+    let traversed = 0;
+    const seen = new WeakSet();
+
+    while (stack.length && traversed < MAX_NODES && videos.length < MAX_VIDEOS) {
+      const node = stack.pop();
+      traversed++;
+
+      if (!node || typeof node !== 'object') continue;
+      if (seen.has(node)) continue;
+      seen.add(node);
+
+      if (node.videoRenderer) {
+        const video = normalizeVideoRenderer(node.videoRenderer);
+        if (video) videos.push(video);
+        if (videos.length >= MAX_VIDEOS) break;
+      }
+      
+      if (node.richItemRenderer && node.richItemRenderer.content) {
+        const content = node.richItemRenderer.content;
+        if (content.videoRenderer) {
+          const video = normalizeVideoRenderer(content.videoRenderer);
+          if (video) videos.push(video);
+          if (videos.length >= MAX_VIDEOS) break;
+        }
+      }
+
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          if (child && typeof child === 'object') stack.push(child);
+        }
+      } else {
+        for (const key in node) {
+          if (Object.prototype.hasOwnProperty.call(node, key)) {
+            const child = node[key];
+            if (child && typeof child === 'object') stack.push(child);
+          }
+        }
+      }
+    }
+
+    return videos;
+  }
+  
+  function loadPrefetchedData() {
+    // Priority: background cache > in-memory > localStorage
+    if (backgroundCacheData && backgroundCacheData.length > 0) {
+      return backgroundCacheData;
+    }
+    if (prefetchedData && prefetchedData.length > 0) {
+      return prefetchedData;
+    }
+    // Fall back to localStorage
+    return loadVideoListFromCache();
+  }
 
   function isFeedPage() {
     const path = window.location.pathname;
@@ -649,27 +953,30 @@
     return window.location.pathname.startsWith('/playlist');
   }
 
-  function scheduleBuildCustomVideoList(delay = 500) {
-    if (buildTimeout) {
-      clearTimeout(buildTimeout);
-      buildTimeout = null;
+  function scheduleBuildCustomVideoList(delay = 300, forceRebuild = false) {
+    // Debounce: cancel any pending build and schedule a new one
+    if (buildDebounceTimer) {
+      clearTimeout(buildDebounceTimer);
     }
-    buildTimeout = setTimeout(() => {
+    buildDebounceTimer = setTimeout(() => {
+      buildDebounceTimer = null;
       // Wait for DOM to be ready
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', buildCustomVideoList);
+        document.addEventListener('DOMContentLoaded', () => buildCustomVideoList(forceRebuild));
       } else {
-        buildCustomVideoList();
+        buildCustomVideoList(forceRebuild);
       }
     }, delay);
   }
 
   function resetBuildState() {
     buildAttempts = 0;
-    if (buildTimeout) {
-      clearTimeout(buildTimeout);
-      buildTimeout = null;
+    if (buildDebounceTimer) {
+      clearTimeout(buildDebounceTimer);
+      buildDebounceTimer = null;
     }
+    // Clear video data cache on reset
+    videoDataCache = { key: '', videos: [] };
   }
 
   function formatDurationToMinutes(duration) {
@@ -756,46 +1063,54 @@
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
   
-  function buildCustomVideoList() {
+  function buildCustomVideoList(forceRebuild = false) {
     if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage()) return;
     
-    // Don't rebuild if list already exists and has videos
-    const existingList = document.getElementById('primeyt-video-list');
-    if (existingList && existingList.querySelectorAll('.primeyt-video-row').length > 0) {
-      return;
-    }
-
-    // Collect videos from BOTH sources
-    const videosFromData = collectVideosFromData();
-    const videosFromDom = collectVideosFromDom();
-
-    const combined = [];
-    const seen = new Set();
-    [...videosFromData, ...videosFromDom].forEach(video => {
-      if (!video || !video.url || seen.has(video.url)) return;
-      seen.add(video.url);
-      combined.push(video);
-    });
-
-    const pageType = isSearchPage() ? 'search' : isPlaylistPage() ? 'playlist' : 'subscriptions';
-    console.log(`[PrimeYT] Build attempt ${buildAttempts + 1} (${pageType}), found ${combined.length} videos (${videosFromData.length} from data, ${videosFromDom.length} from DOM)`);
-
-    if (combined.length === 0) {
-      buildAttempts++;
-      if (buildAttempts < 15) {
-        scheduleBuildCustomVideoList(500);
-      } else {
-        console.log('[PrimeYT] Unable to build custom list after multiple attempts');
-        console.log('[PrimeYT] Debug: ytInitialData available:', !!window.ytInitialData);
-        console.log('[PrimeYT] Debug: DOM rich-item elements:', document.querySelectorAll('ytd-rich-item-renderer').length);
-        console.log('[PrimeYT] Debug: DOM video-renderer elements:', document.querySelectorAll('ytd-video-renderer').length);
+    // Prevent concurrent builds
+    if (isBuilding) return;
+    
+    // Don't rebuild if list already exists and has videos (unless forced)
+    if (!forceRebuild) {
+      const existingList = document.getElementById('primeyt-video-list');
+      if (existingList && existingList.querySelectorAll('.primeyt-video-row').length > 0) {
+        return;
       }
-      return;
     }
 
-    renderCustomVideoList(combined);
-    customListBuilt = true;
-    buildAttempts = 0;
+    isBuilding = true;
+    
+    try {
+      // Collect videos from BOTH sources
+      const videosFromData = collectVideosFromData();
+      const videosFromDom = collectVideosFromDom();
+
+      const combined = [];
+      const seen = new Set();
+      [...videosFromData, ...videosFromDom].forEach(video => {
+        if (!video || !video.url || seen.has(video.url)) return;
+        seen.add(video.url);
+        combined.push(video);
+      });
+
+      const pageType = isSearchPage() ? 'search' : isPlaylistPage() ? 'playlist' : 'subscriptions';
+      console.log(`[PrimeYT] Build attempt ${buildAttempts + 1} (${pageType}), found ${combined.length} videos (${videosFromData.length} from data, ${videosFromDom.length} from DOM)`);
+
+      if (combined.length === 0) {
+        buildAttempts++;
+        if (buildAttempts < 10) {
+          scheduleBuildCustomVideoList(400);
+        } else {
+          console.log('[PrimeYT] Unable to build custom list after multiple attempts');
+        }
+        return;
+      }
+
+      renderCustomVideoList(combined);
+      customListBuilt = true;
+      buildAttempts = 0;
+    } finally {
+      isBuilding = false;
+    }
   }
 
   function getVideoIdFromUrl(url) {
@@ -807,18 +1122,19 @@
     }
   }
 
-  function renderCustomVideoList(videos) {
+  function renderCustomVideoList(videos, isCached = false) {
     // Remove existing list if present
     const existingList = document.getElementById('primeyt-video-list');
-    if (existingList) {
-      existingList.remove();
-    }
+    const existingWrapper = document.getElementById('primeyt-list-wrapper');
+    if (existingList) existingList.remove();
+    if (existingWrapper) existingWrapper.remove();
     
     // Get set of watched video IDs for quick lookup
     const watchedIds = window.PrimeYTStats ? window.PrimeYTStats.getWatchedVideoIds() : new Set();
     
     const list = document.createElement('div');
     list.id = 'primeyt-video-list';
+    if (isCached) list.classList.add('primeyt-cached');
     
     videos.forEach((video, index) => {
       const row = document.createElement('div');
@@ -888,13 +1204,13 @@
     // Add class to body to trigger CSS hiding of YouTube grid
     document.body.classList.add('primeyt-list-active');
     
-    console.log(`[PrimeYT] SUCCESS: Built list with ${videos.length} videos`);
-    console.log('[PrimeYT] Sample videos:', videos.slice(0, 3).map(v => ({
-      title: v.title?.substring(0, 30),
-      channel: v.channel || '(none)',
-      duration: v.duration || '(none)',
-      time: v.time || '(none)'
-    })));
+    const cacheStatus = isCached ? ' (from cache)' : '';
+    console.log(`[PrimeYT] SUCCESS: Built list with ${videos.length} videos${cacheStatus}`);
+    
+    // Save to localStorage cache (only if not from cache - fresh data)
+    if (!isCached) {
+      saveVideoListToCache(videos);
+    }
     
     // Start polling for missing durations
     startDurationUpdater();
@@ -905,20 +1221,26 @@
     const data = window.ytInitialData || window.ytInitialPlayerResponse || window.__INITIAL_STATE__;
     if (!data) return [];
 
+    // Check cache - return cached videos if URL matches and we have videos
+    const cacheKey = window.location.href;
+    if (videoDataCache.key === cacheKey && videoDataCache.videos.length > 0) {
+      return videoDataCache.videos;
+    }
+
     const videos = [];
-
     const stack = [data];
-    const maxNodes = 20000;
+    const MAX_VIDEOS = 100;  // Stop once we have enough videos
+    const MAX_NODES = 5000;  // Reduced from 20,000 for faster traversal
     let traversed = 0;
-    const seen = new Set();
+    const seen = new WeakSet();  // WeakSet for better GC
 
-    while (stack.length && traversed < maxNodes) {
+    while (stack.length && traversed < MAX_NODES && videos.length < MAX_VIDEOS) {
       const node = stack.pop();
       traversed++;
 
       if (!node || typeof node !== 'object') continue;
       
-      // Avoid infinite loops
+      // Avoid infinite loops (WeakSet only works with objects)
       if (seen.has(node)) continue;
       seen.add(node);
 
@@ -926,6 +1248,7 @@
       if (node.videoRenderer) {
         const video = normalizeVideoRenderer(node.videoRenderer);
         if (video) videos.push(video);
+        if (videos.length >= MAX_VIDEOS) break;
       }
       
       // Also check for richItemRenderer (used in subscriptions feed)
@@ -934,6 +1257,7 @@
         if (content.videoRenderer) {
           const video = normalizeVideoRenderer(content.videoRenderer);
           if (video) videos.push(video);
+          if (videos.length >= MAX_VIDEOS) break;
         }
       }
       
@@ -941,6 +1265,7 @@
       if (node.playlistVideoRenderer) {
         const video = normalizePlaylistVideoRenderer(node.playlistVideoRenderer);
         if (video) videos.push(video);
+        if (videos.length >= MAX_VIDEOS) break;
       }
       
       // Also check for playlistVideoListRenderer contents
@@ -949,13 +1274,15 @@
           if (item.playlistVideoRenderer) {
             const video = normalizePlaylistVideoRenderer(item.playlistVideoRenderer);
             if (video) videos.push(video);
+            if (videos.length >= MAX_VIDEOS) break;
           }
         }
+        if (videos.length >= MAX_VIDEOS) break;
       }
 
       if (Array.isArray(node)) {
         for (const child of node) {
-          if (child && typeof child === 'object' && !seen.has(child)) {
+          if (child && typeof child === 'object') {
             stack.push(child);
           }
         }
@@ -963,7 +1290,7 @@
         for (const key in node) {
           if (Object.prototype.hasOwnProperty.call(node, key)) {
             const child = node[key];
-            if (child && typeof child === 'object' && !seen.has(child)) {
+            if (child && typeof child === 'object') {
               stack.push(child);
             }
           }
@@ -971,6 +1298,8 @@
       }
     }
 
+    // Cache the result
+    videoDataCache = { key: cacheKey, videos };
     return videos;
   }
 
@@ -1558,9 +1887,20 @@
     }
     
     // Handle subscriptions page, search page, and playlist pages
+    // Show cached list immediately, then refresh with fresh data
     if (isSubscriptionsPage() || isSearchPage() || isPlaylistPage()) {
-      resetBuildState();
-      scheduleBuildCustomVideoList(800);
+      if (!customListBuilt && !isBuilding) {
+        // Try to show cached list instantly
+        const showedCache = showCachedListImmediately();
+        
+        if (showedCache) {
+          customListBuilt = true;
+          // Refresh with fresh data in background
+          scheduleBuildCustomVideoList(600, true);
+        } else {
+          scheduleBuildCustomVideoList(400);
+        }
+      }
     } else if (path !== '/watch' && path !== '/') {
       destroyCustomList();
     }
@@ -1588,9 +1928,14 @@
     
     pathObserver.observe(document.body, { childList: true, subtree: true });
     
-    // Watch for new videos being added to the feed (infinite scroll)
+    // Watch for new videos being added to the feed (infinite scroll ONLY)
+    // This observer only handles incremental updates when list already exists
     const feedObserver = new MutationObserver((mutations) => {
       if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage()) return;
+      
+      // Only handle infinite scroll if list is already built
+      // Initial build is handled by yt-navigate-finish
+      if (!customListBuilt) return;
       
       let shouldRebuild = false;
       for (const mutation of mutations) {
@@ -1615,16 +1960,81 @@
       }
       
       if (shouldRebuild) {
-        clearTimeout(buildTimeout);
-        scheduleBuildCustomVideoList(1000);
+        // Invalidate cache for infinite scroll (new videos added)
+        videoDataCache = { key: '', videos: [] };
+        // Longer debounce for scroll-based updates, force rebuild to add new videos
+        scheduleBuildCustomVideoList(800, true);
       }
     });
     
     feedObserver.observe(document.body, { childList: true, subtree: true });
     
-    // YouTube's custom navigation event
-    window.addEventListener('yt-navigate-finish', updatePageState);
+    // YouTube's custom navigation event - PRIMARY trigger for initial builds
+    window.addEventListener('yt-navigate-finish', () => {
+      // Clear in-memory cache on navigation (not localStorage cache)
+      videoDataCache = { key: '', videos: [] };
+
+      // Update page state
+      updatePageState();
+
+      // For relevant pages: show cached list instantly, then refresh in background
+      if (isSubscriptionsPage() || isSearchPage() || isPlaylistPage()) {
+        resetBuildState();
+
+        // Check if we have fresh prefetched data (for subscriptions)
+        const hasFreshPrefetch = isSubscriptionsPage() && prefetchedData && prefetchedData.length > 0;
+        
+        // Show cached list immediately for instant perceived load
+        const showedCache = showCachedListImmediately();
+
+        if (showedCache) {
+          customListBuilt = true;
+          
+          if (hasFreshPrefetch) {
+            // We used fresh prefetched data - no need to refresh!
+            // The data is already current (prefetched in background)
+            console.log('[PrimeYT] Using fresh prefetched data - instant load complete');
+          } else {
+            // localStorage cache might be stale, refresh in background
+            scheduleBuildCustomVideoList(800, true);
+          }
+        } else {
+          // No cache available, build normally
+          scheduleBuildCustomVideoList(400);
+        }
+      }
+    });
+    
     window.addEventListener('popstate', updatePageState);
+  }
+  
+  // ==========================================
+  // Preload on Hover (anticipatory loading)
+  // ==========================================
+
+  function setupHoverPreload() {
+    // Find the subscriptions link in the sidebar
+    const checkAndAttach = () => {
+      const subscriptionLinks = document.querySelectorAll('a[href="/feed/subscriptions"]');
+
+      subscriptionLinks.forEach(link => {
+        if (link.dataset.primeytPreload) return; // Already attached
+        link.dataset.primeytPreload = 'true';
+
+        link.addEventListener('mouseenter', () => {
+          // If we don't have prefetched data yet, trigger immediate prefetch
+          if (!prefetchedData && !prefetchInProgress && !isSubscriptionsPage()) {
+            console.log('[PrimeYT] Hover detected - triggering prefetch');
+            prefetchSubscriptions();
+          }
+        });
+      });
+    };
+
+    // Check now and periodically (YouTube's sidebar loads dynamically)
+    checkAndAttach();
+    setTimeout(checkAndAttach, 2000);
+    setTimeout(checkAndAttach, 5000);
   }
   
   // ==========================================
@@ -1641,33 +2051,62 @@
   
   function onReady() {
     console.log('[PrimeYT] Initializing...');
-    
+
+    // FIRST: Load background worker cache immediately (available before page loads)
+    loadBackgroundCache().then(() => {
+      console.log('[PrimeYT] Background cache loaded');
+    });
+
     // Initialize stats module
     if (window.PrimeYTStats) {
       window.PrimeYTStats.init();
     }
-    
+
     // Initialize keyboard module
     if (window.PrimeYTKeyboard) {
       window.PrimeYTKeyboard.init();
     }
-    
+
     // Setup page detection
     setupPageDetection();
-    
+
     // Setup promo hiding (NOT popup removal!)
     setupPromoHiding();
-    
+
     // Create stats widget
     createStatsWidget();
     updateStatsWidget();
     setInterval(updateStatsWidget, 5000);
-    
+
     // Block space key from reaching YouTube player
     setupSpaceBlocker();
-    
+
     // Setup cursor auto-hide (entire page)
     setupCursorHide();
+
+    // Setup hover preload for subscriptions
+    setupHoverPreload();
+
+    // Clean up old caches periodically
+    clearOldCaches();
+
+    // FALLBACK PREFETCH: Only if background cache isn't available
+    // Background worker handles the main syncing now
+    setTimeout(() => {
+      if (!backgroundCacheData) {
+        prefetchSubscriptions();
+      }
+    }, 2000);
+
+    // Trigger background sync if cache is stale (> 10 minutes old)
+    setTimeout(() => {
+      if (!backgroundCacheData) {
+        triggerBackgroundSync();
+      }
+    }, 5000);
+
+    // Re-prefetch every 5 minutes as fallback
+    setInterval(prefetchSubscriptions, 5 * 60 * 1000);
     
     console.log('[PrimeYT] Ready. Press Space + ? for keyboard shortcuts.');
   }
