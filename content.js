@@ -2000,7 +2000,8 @@
           }
         } else {
           // No cache available, build normally
-          scheduleBuildCustomVideoList(400);
+          // Use forceRebuild=true to handle case where old list exists from previous page
+          scheduleBuildCustomVideoList(400, true);
         }
       }
     });

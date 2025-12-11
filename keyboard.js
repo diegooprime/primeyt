@@ -215,9 +215,6 @@ const PrimeYTKeyboard = (function() {
     
     // Direct bindings
     const directAction = bindings.direct[e.key];
-    if (e.key === 'u') {
-      console.log('[PrimeYT] u key pressed, isOnWatchPage:', isOnWatchPage(), 'action:', directAction);
-    }
     if (directAction) {
       // Pass count to navigation actions
       let result;
