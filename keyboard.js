@@ -15,7 +15,10 @@ const PrimeYTKeyboard = (function() {
     filterOverlay: null,
     filterActive: false,
     countBuffer: '',      // For Vim-style count prefix (e.g., "5" in "5j")
-    countTimer: null      // Reset count after timeout
+    countTimer: null,     // Reset count after timeout
+    chapterOverlay: null, // Chapter navigation modal
+    chapters: [],         // Cached chapters for current video
+    focusedChapter: -1    // Currently focused chapter in modal
   };
   
   // ==========================================
@@ -32,6 +35,7 @@ const PrimeYTKeyboard = (function() {
       'm': () => isOnWatchPage() ? toggleMute() : null,
       'c': () => isOnWatchPage() ? toggleCaptions() : null,
       't': () => isOnWatchPage() ? toggleTheater() : null,
+      'u': () => isOnWatchPage() ? openChapterModal() : null,
       
       // Shift+H to go back - works on ALL pages
       'H': () => goBack(),
@@ -103,6 +107,26 @@ const PrimeYTKeyboard = (function() {
       if (e.key === 'Escape') {
         closeFilter();
         e.preventDefault();
+      }
+      return;
+    }
+    
+    // Handle chapter modal
+    if (state.chapterOverlay?.classList.contains('active')) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (e.key === 'Escape') {
+        closeChapterModal();
+      } else if (e.key === 'j' || e.key === 'ArrowDown') {
+        navigateChapters(1);
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        navigateChapters(-1);
+      } else if (e.key === 'Enter') {
+        jumpToFocusedChapter();
+      } else if (e.key === 'u') {
+        // Close modal if u pressed again
+        closeChapterModal();
       }
       return;
     }
@@ -191,6 +215,9 @@ const PrimeYTKeyboard = (function() {
     
     // Direct bindings
     const directAction = bindings.direct[e.key];
+    if (e.key === 'u') {
+      console.log('[PrimeYT] u key pressed, isOnWatchPage:', isOnWatchPage(), 'action:', directAction);
+    }
     if (directAction) {
       // Pass count to navigation actions
       let result;
@@ -918,6 +945,367 @@ const PrimeYTKeyboard = (function() {
       if (shareBtn) shareBtn.click();
     });
     return true;
+  }
+  
+  // ==========================================
+  // Chapter Navigation
+  // ==========================================
+  
+  function getChapters() {
+    const chapters = [];
+    
+    // Method 1: Get chapters from the player's internal data (most reliable)
+    try {
+      const player = getPlayer();
+      if (player) {
+        // Try to access chapter data through the player
+        const progressBar = player.querySelector('.ytp-progress-bar');
+        const chapterContainers = player.querySelectorAll('.ytp-chapter-hover-container');
+        
+        if (chapterContainers.length > 0) {
+          chapterContainers.forEach(container => {
+            const titleEl = container.querySelector('.ytp-chapter-title-content');
+            const title = titleEl?.textContent?.trim() || '';
+            // Get time from data attribute or aria-label
+            const ariaLabel = container.closest('[aria-label]')?.getAttribute('aria-label') || '';
+            const timeMatch = ariaLabel.match(/(\d+:\d+(?::\d+)?)/);
+            
+            if (title && timeMatch) {
+              const time = parseTimeStr(timeMatch[1]);
+              chapters.push({ time, title, timeStr: formatChapterTime(time) });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.log('[PrimeYT] Error parsing chapters from player:', e);
+    }
+    
+    // Method 2: Parse from video description (timestamps like "0:00 Introduction")
+    if (chapters.length === 0) {
+      try {
+        // Get description from multiple sources
+        let description = '';
+        
+        // From ytInitialPlayerResponse
+        if (window.ytInitialPlayerResponse?.videoDetails?.shortDescription) {
+          description = window.ytInitialPlayerResponse.videoDetails.shortDescription;
+        }
+        
+        // Fallback: from DOM
+        if (!description) {
+          const descEl = document.querySelector('#description-inline-expander, ytd-text-inline-expander');
+          description = descEl?.textContent || '';
+        }
+        
+        if (description) {
+          // Match timestamps: "0:00 Title" or "00:00 Title" or "1:23:45 Title"
+          const lines = description.split('\n');
+          for (const line of lines) {
+            const match = line.match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$/);
+            if (match) {
+              const hours = match[1] ? parseInt(match[1]) : 0;
+              const minutes = parseInt(match[2]);
+              const seconds = parseInt(match[3]);
+              const title = match[4].trim();
+              const time = hours * 3600 + minutes * 60 + seconds;
+              
+              chapters.push({ time, title, timeStr: formatChapterTime(time) });
+            }
+          }
+        }
+      } catch (e) {
+        console.log('[PrimeYT] Error parsing chapters from description:', e);
+      }
+    }
+    
+    // Method 3: Get from ytInitialPlayerResponse markers
+    if (chapters.length === 0) {
+      try {
+        // Try different paths in the response
+        const paths = [
+          window.ytInitialPlayerResponse?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap,
+          window.ytInitialPlayerResponse?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap
+        ];
+        
+        for (const data of paths) {
+          if (data && Array.isArray(data)) {
+            for (const markerGroup of data) {
+              const chapterList = markerGroup.value?.chapters || markerGroup.chapters;
+              if (chapterList) {
+                for (const ch of chapterList) {
+                  const chapterRenderer = ch.chapterRenderer;
+                  if (chapterRenderer) {
+                    const title = chapterRenderer.title?.simpleText || 
+                                  chapterRenderer.title?.runs?.[0]?.text || '';
+                    const timeMs = parseInt(chapterRenderer.timeRangeStartMillis || 0);
+                    const time = Math.floor(timeMs / 1000);
+                    if (title) {
+                      chapters.push({ time, title, timeStr: formatChapterTime(time) });
+                    }
+                  }
+                }
+              }
+            }
+            if (chapters.length > 0) break;
+          }
+        }
+      } catch (e) {
+        console.log('[PrimeYT] Error parsing chapters from playerResponse:', e);
+      }
+    }
+    
+    // Method 4: Look for chapters in engagement panels / macro markers
+    if (chapters.length === 0) {
+      try {
+        const panels = document.querySelectorAll('ytd-macro-markers-list-item-renderer');
+        panels.forEach(panel => {
+          const title = panel.querySelector('#title, .macro-markers-list-item-text')?.textContent?.trim();
+          const timeEl = panel.querySelector('#time, .macro-markers-list-item-time');
+          const timeText = timeEl?.textContent?.trim();
+          
+          if (title && timeText) {
+            const time = parseTimeStr(timeText);
+            chapters.push({ time, title, timeStr: timeText });
+          }
+        });
+      } catch (e) {
+        console.log('[PrimeYT] Error parsing chapters from engagement panels:', e);
+      }
+    }
+    
+    // Method 5: Check for chapter segments in progress bar
+    if (chapters.length === 0) {
+      try {
+        const segments = document.querySelectorAll('.ytp-progress-bar-container [role="slider"]');
+        const chaptersContainer = document.querySelector('.ytp-chapters-container');
+        if (chaptersContainer) {
+          const chapterEls = chaptersContainer.querySelectorAll('.ytp-chapter-title');
+          chapterEls.forEach((el, i) => {
+            const title = el.textContent?.trim();
+            if (title) {
+              // Estimate time based on position (fallback)
+              chapters.push({ time: i * 60, title, timeStr: formatChapterTime(i * 60) });
+            }
+          });
+        }
+      } catch (e) {
+        console.log('[PrimeYT] Error parsing chapters from progress bar:', e);
+      }
+    }
+    
+    // Remove duplicates and sort by time
+    const seen = new Set();
+    const unique = chapters.filter(ch => {
+      const key = `${ch.time}-${ch.title}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    
+    unique.sort((a, b) => a.time - b.time);
+    
+    console.log('[PrimeYT] Found chapters:', unique.length, unique);
+    
+    return unique;
+  }
+  
+  function parseTimeStr(timeStr) {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':').map(p => parseInt(p, 10));
+    if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    } else if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
+  }
+  
+  function formatChapterTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+  
+  function createChapterModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'primeyt-chapter-overlay';
+    overlay.className = 'primeyt-overlay';
+    overlay.innerHTML = `
+      <div class="primeyt-chapter-modal">
+        <div class="primeyt-chapter-header">
+          <span class="primeyt-chapter-title">Chapters</span>
+          <span class="primeyt-chapter-hint">j/k navigate · Enter jump · Esc close</span>
+        </div>
+        <div class="primeyt-chapter-list" id="primeyt-chapter-list"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeChapterModal();
+    });
+    
+    state.chapterOverlay = overlay;
+    return overlay;
+  }
+  
+  function openChapterModal() {
+    if (!isOnWatchPage()) {
+      console.log('[PrimeYT] Not on watch page, skipping chapter modal');
+      return null;
+    }
+    
+    console.log('[PrimeYT] Opening chapter modal...');
+    const chapters = getChapters();
+    
+    if (chapters.length === 0) {
+      console.log('[PrimeYT] No chapters found');
+      showSeekFeedback('No chapters');
+      return true;
+    }
+    
+    console.log('[PrimeYT] Found', chapters.length, 'chapters');
+    
+    state.chapters = chapters;
+    
+    if (!state.chapterOverlay) createChapterModal();
+    
+    const list = document.getElementById('primeyt-chapter-list');
+    const video = getVideo();
+    const currentTime = video?.currentTime || 0;
+    
+    // Find current chapter based on video time
+    let currentChapterIndex = 0;
+    for (let i = chapters.length - 1; i >= 0; i--) {
+      if (chapters[i].time <= currentTime) {
+        currentChapterIndex = i;
+        break;
+      }
+    }
+    
+    // Build chapter list
+    list.innerHTML = chapters.map((ch, i) => {
+      const isCurrent = i === currentChapterIndex;
+      return `
+        <div class="primeyt-chapter-row ${isCurrent ? 'primeyt-chapter-current' : ''}" 
+             data-index="${i}" data-time="${ch.time}">
+          <span class="primeyt-chapter-index">${i}</span>
+          <span class="primeyt-chapter-time">${ch.timeStr}</span>
+          <span class="primeyt-chapter-name">${escapeHtmlChapter(ch.title)}</span>
+        </div>
+      `;
+    }).join('');
+    
+    // Add click handlers
+    list.querySelectorAll('.primeyt-chapter-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const time = parseFloat(row.dataset.time);
+        seekToTime(time);
+        closeChapterModal();
+      });
+    });
+    
+    // Focus current chapter
+    state.focusedChapter = currentChapterIndex;
+    updateChapterFocus();
+    
+    state.chapterOverlay.classList.add('active');
+    
+    // Scroll to current chapter
+    setTimeout(() => {
+      const focused = list.querySelector('.primeyt-chapter-focused');
+      if (focused) {
+        focused.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 50);
+    
+    return true;
+  }
+  
+  function closeChapterModal() {
+    if (state.chapterOverlay) {
+      state.chapterOverlay.classList.remove('active');
+    }
+    state.focusedChapter = -1;
+  }
+  
+  function navigateChapters(direction) {
+    if (state.chapters.length === 0) return;
+    
+    let newIndex = state.focusedChapter + direction;
+    newIndex = Math.max(0, Math.min(newIndex, state.chapters.length - 1));
+    
+    state.focusedChapter = newIndex;
+    updateChapterFocus();
+  }
+  
+  function navigateChaptersToIndex(index) {
+    if (state.chapters.length === 0) return;
+    
+    state.focusedChapter = Math.max(0, Math.min(index, state.chapters.length - 1));
+    updateChapterFocus();
+  }
+  
+  function updateChapterFocus() {
+    const list = document.getElementById('primeyt-chapter-list');
+    if (!list) return;
+    
+    // Remove previous focus
+    list.querySelectorAll('.primeyt-chapter-focused').forEach(el => {
+      el.classList.remove('primeyt-chapter-focused');
+    });
+    
+    // Add new focus
+    const row = list.querySelector(`[data-index="${state.focusedChapter}"]`);
+    if (row) {
+      row.classList.add('primeyt-chapter-focused');
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Update relative line numbers
+      list.querySelectorAll('.primeyt-chapter-row').forEach(r => {
+        const idx = parseInt(r.dataset.index);
+        const lineNum = r.querySelector('.primeyt-chapter-index');
+        if (idx === state.focusedChapter) {
+          lineNum.textContent = idx;
+        } else {
+          lineNum.textContent = Math.abs(idx - state.focusedChapter);
+        }
+      });
+    }
+  }
+  
+  function jumpToFocusedChapter() {
+    if (state.focusedChapter < 0 || state.focusedChapter >= state.chapters.length) return;
+    
+    const chapter = state.chapters[state.focusedChapter];
+    seekToTime(chapter.time);
+    closeChapterModal();
+    showSeekFeedback(chapter.title.substring(0, 20));
+  }
+  
+  function seekToTime(seconds) {
+    const player = getPlayer();
+    if (player && player.seekTo) {
+      player.seekTo(seconds, true);
+    } else {
+      const video = getVideo();
+      if (video) {
+        video.currentTime = seconds;
+      }
+    }
+  }
+  
+  function escapeHtmlChapter(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
   
   function likeVideo() {
@@ -1988,6 +2376,7 @@ const PrimeYTKeyboard = (function() {
             <div class="primeyt-help-row"><kbd>m</kbd> <span>Mute/unmute</span></div>
             <div class="primeyt-help-row"><kbd>c</kbd> <span>Captions</span></div>
             <div class="primeyt-help-row"><kbd>t</kbd> <span>Theater mode</span></div>
+            <div class="primeyt-help-row"><kbd>u</kbd> <span>Chapters</span></div>
           </div>
           <div class="primeyt-help-section">
             <div class="primeyt-help-title">Navigation</div>

@@ -260,14 +260,16 @@
     `;
     
     // Create time stats display (top right)
+    // Format: 1:23 / 10:00 | 4:32 @ 1.5x | 14%
     const timeStats = document.createElement('div');
     timeStats.id = 'primeyt-video-time-stats';
     timeStats.innerHTML = `
-      <span id="primeyt-elapsed-secs">0</span>
+      <span id="primeyt-elapsed-secs">0:00</span>
       <span class="primeyt-time-sep">/</span>
-      <span id="primeyt-total-secs">0</span>
+      <span id="primeyt-total-secs">0:00</span>
       <span class="primeyt-time-sep">|</span>
-      <span id="primeyt-remaining-secs">0</span>
+      <span id="primeyt-remaining-secs">0:00</span>
+      <span id="primeyt-speed-indicator">@ 1x</span>
       <span class="primeyt-time-sep">|</span>
       <span id="primeyt-percent">0%</span>
     `;
@@ -385,9 +387,11 @@
       }
       
       // Update time stats display
+      // Format: 1:23 / 10:00 | 4:32 @ 1.5x | 14%
       const elapsedEl = document.getElementById('primeyt-elapsed-secs');
       const totalEl = document.getElementById('primeyt-total-secs');
       const remainingEl = document.getElementById('primeyt-remaining-secs');
+      let speedEl = document.getElementById('primeyt-speed-indicator');
       const percentEl = document.getElementById('primeyt-percent');
       
       if (elapsedEl && totalEl && remainingEl && percentEl) {
@@ -403,6 +407,25 @@
         totalEl.textContent = formatTime(total);
         remainingEl.textContent = formatTime(adjustedRemaining);
         percentEl.textContent = `${percent}%`;
+        
+        // Ensure speed indicator exists (in case old HTML is cached)
+        if (!speedEl) {
+          // Find the separator after remaining time and insert before it
+          const timeStats = document.getElementById('primeyt-video-time-stats');
+          if (timeStats && remainingEl.nextElementSibling) {
+            speedEl = document.createElement('span');
+            speedEl.id = 'primeyt-speed-indicator';
+            timeStats.insertBefore(speedEl, remainingEl.nextElementSibling);
+          }
+        }
+        
+        // Update speed indicator
+        if (speedEl) {
+          const speedStr = playbackRate === 1 ? '1x' : `${playbackRate}x`;
+          speedEl.textContent = ` @ ${speedStr}`;
+          // Highlight when not at 1x speed
+          speedEl.classList.toggle('primeyt-speed-active', playbackRate !== 1);
+        }
       }
     }
     

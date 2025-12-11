@@ -1302,3 +1302,124 @@ body.primeyt-page-channel ytd-shelf-renderer:has([title*="channels"]) {
 body:has(.primeyt-filter-bar.active) #primeyt-list-wrapper {
   padding-bottom: 60px !important;
 }
+
+/* ========================================
+   CHAPTER NAVIGATION MODAL
+   ======================================== */
+
+#primeyt-chapter-overlay {
+  padding-top: 10vh;
+}
+
+.primeyt-chapter-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 550px;
+  max-height: 70vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.primeyt-chapter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.primeyt-chapter-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.primeyt-chapter-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.primeyt-chapter-list {
+  max-height: calc(70vh - 60px);
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.primeyt-chapter-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  gap: 14px;
+}
+
+.primeyt-chapter-row:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.primeyt-chapter-row.primeyt-chapter-focused {
+  background-color: var(--bg-tertiary);
+  box-shadow: inset 3px 0 0 var(--accent-cyan);
+}
+
+.primeyt-chapter-row.primeyt-chapter-current {
+  background-color: rgba(152, 195, 121, 0.1);
+}
+
+.primeyt-chapter-row.primeyt-chapter-current .primeyt-chapter-name {
+  color: var(--accent-green);
+}
+
+.primeyt-chapter-index {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 24px;
+  text-align: right;
+}
+
+.primeyt-chapter-row.primeyt-chapter-focused .primeyt-chapter-index {
+  color: var(--accent-yellow);
+  font-weight: 600;
+}
+
+.primeyt-chapter-time {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 13px;
+  color: var(--accent-cyan);
+  min-width: 55px;
+  text-align: right;
+}
+
+.primeyt-chapter-name {
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ========================================
+   SPEED INDICATOR (TIME STATS)
+   ======================================== */
+
+#primeyt-speed-indicator {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-left: 2px;
+  font-weight: 500;
+}
+
+#primeyt-speed-indicator.primeyt-speed-active {
+  color: var(--accent-purple);
+  font-weight: 600;
+}
+
+/* Ensure time stats children are visible */
+#primeyt-video-time-stats > span {
+  display: inline;
+}
