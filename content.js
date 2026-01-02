@@ -212,6 +212,104 @@
   }
   
   // ==========================================
+  // Hide End Cards
+  // ==========================================
+  
+  let endCardObserver = null;
+  let endCardInterval = null;
+  
+  function hideEndCards() {
+    const selectors = [
+      '.ytp-ce-element',
+      '.ytp-ce-video',
+      '.ytp-ce-channel',
+      '.ytp-ce-playlist',
+      '.ytp-ce-covering-overlay',
+      '.ytp-endscreen-content',
+      '.ytp-videowall-still',
+      '.ytp-suggestion-set',
+      '.html5-endscreen',
+      '.videowall-endscreen'
+    ];
+    
+    selectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => {
+        el.style.display = 'none';
+        el.style.opacity = '0';
+        el.style.visibility = 'hidden';
+        el.style.pointerEvents = 'none';
+      });
+    });
+  }
+  
+  function setupEndCardHiding() {
+    if (endCardObserver) return;
+    
+    // Initial hide
+    hideEndCards();
+    
+    // Watch for end cards being added
+    endCardObserver = new MutationObserver((mutations) => {
+      let shouldHide = false;
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const className = node.className || '';
+              if (className.includes('ytp-ce') || 
+                  className.includes('endscreen') ||
+                  className.includes('videowall') ||
+                  node.querySelector?.('[class*="ytp-ce"]') ||
+                  node.querySelector?.('[class*="endscreen"]')) {
+                shouldHide = true;
+                break;
+              }
+            }
+          }
+        }
+        if (shouldHide) break;
+      }
+      
+      if (shouldHide) {
+        hideEndCards();
+      }
+    });
+    
+    const player = document.querySelector('#movie_player, .html5-video-player');
+    if (player) {
+      endCardObserver.observe(player, { childList: true, subtree: true });
+    }
+    
+    // Also hide when video ends
+    const video = document.querySelector('video.html5-main-video');
+    if (video) {
+      video.addEventListener('ended', hideEndCards);
+      video.addEventListener('timeupdate', () => {
+        // Hide near end of video (last 20 seconds)
+        if (video.duration && video.currentTime > video.duration - 20) {
+          hideEndCards();
+        }
+      });
+    }
+    
+    // Periodic hiding as fallback (every 2 seconds)
+    if (!endCardInterval) {
+      endCardInterval = setInterval(hideEndCards, 2000);
+    }
+  }
+  
+  function stopEndCardHiding() {
+    if (endCardObserver) {
+      endCardObserver.disconnect();
+      endCardObserver = null;
+    }
+    if (endCardInterval) {
+      clearInterval(endCardInterval);
+      endCardInterval = null;
+    }
+  }
+  
+  // ==========================================
   // Auto Theater Mode
   // ==========================================
   
@@ -641,6 +739,8 @@
   const CACHE_KEY_SEARCH = 'primeyt_cache_search';
   const CACHE_KEY_PLAYLIST = 'primeyt_cache_playlist';
   const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes
+  const CACHE_VERSION = 'primeyt_cache_version';
+  const CURRENT_CACHE_VERSION = 2; // Bump this to invalidate all caches
   
   // ==========================================
   // Persistent Video List Cache (localStorage)
@@ -713,12 +813,33 @@
   }
   
   function clearOldCaches() {
+    // Check cache version - if outdated, clear everything
+    try {
+      const storedVersion = parseInt(localStorage.getItem(CACHE_VERSION) || '0', 10);
+      if (storedVersion < CURRENT_CACHE_VERSION) {
+        console.log('[PrimeYT] Cache version outdated, clearing all caches');
+        // Clear all PrimeYT caches
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('primeyt_cache')) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        localStorage.setItem(CACHE_VERSION, String(CURRENT_CACHE_VERSION));
+        console.log('[PrimeYT] Cleared', keysToRemove.length, 'cache entries');
+        return;
+      }
+    } catch (e) {}
+    
     // Clean up old search/playlist caches to prevent localStorage bloat
+    // Also clear caches that don't have channelUrl (outdated format)
     try {
       const keysToCheck = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith(CACHE_KEY_SEARCH) || key.startsWith(CACHE_KEY_PLAYLIST))) {
+        if (key && (key.startsWith(CACHE_KEY_SEARCH) || key.startsWith(CACHE_KEY_PLAYLIST) || key === CACHE_KEY_SUBSCRIPTIONS)) {
           keysToCheck.push(key);
         }
       }
@@ -728,8 +849,16 @@
           const cached = localStorage.getItem(key);
           if (cached) {
             const data = JSON.parse(cached);
+            // Clear if too old
             if (Date.now() - data.timestamp > CACHE_MAX_AGE) {
               localStorage.removeItem(key);
+              console.log('[PrimeYT] Cleared old cache:', key);
+              return;
+            }
+            // Clear if videos don't have channelUrl (outdated format)
+            if (data.videos && data.videos.length > 0 && !data.videos[0].channelUrl) {
+              localStorage.removeItem(key);
+              console.log('[PrimeYT] Cleared cache without channelUrl:', key);
             }
           }
         } catch (e) {}
@@ -877,6 +1006,7 @@
   
   function extractVideosFromData(data) {
     // Simplified version of collectVideosFromData for prefetched data
+    // Uses the same normalizeVideoRenderer which now includes channelUrl
     const videos = [];
     const stack = [data];
     const MAX_VIDEOS = 100;
@@ -951,6 +1081,11 @@
 
   function isPlaylistPage() {
     return window.location.pathname.startsWith('/playlist');
+  }
+
+  function isChannelPage() {
+    const path = window.location.pathname;
+    return path.startsWith('/@') || path.startsWith('/channel/') || path.startsWith('/c/');
   }
 
   function scheduleBuildCustomVideoList(delay = 300, forceRebuild = false) {
@@ -1141,6 +1276,12 @@
       row.className = 'primeyt-video-row';
       row.dataset.url = video.url;
       row.dataset.index = index;
+      if (video.channelUrl) {
+        row.dataset.channelUrl = video.channelUrl;
+      } else if (index < 3) {
+        // Debug: log first few videos without channelUrl
+        console.log(`[PrimeYT] Video ${index} missing channelUrl:`, video.title, video.channel);
+      }
       
       // Check if video is watched
       const videoId = getVideoIdFromUrl(video.url);
@@ -1205,7 +1346,8 @@
     document.body.classList.add('primeyt-list-active');
     
     const cacheStatus = isCached ? ' (from cache)' : '';
-    console.log(`[PrimeYT] SUCCESS: Built list with ${videos.length} videos${cacheStatus}`);
+    const videosWithChannelUrl = videos.filter(v => v.channelUrl).length;
+    console.log(`[PrimeYT] SUCCESS: Built list with ${videos.length} videos${cacheStatus}, ${videosWithChannelUrl} have channelUrl`);
     
     // Save to localStorage cache (only if not from cache - fresh data)
     if (!isCached) {
@@ -1316,6 +1458,31 @@
       video.longBylineText?.runs ||
       [];
     const channel = ownerRuns.map(run => run.text).join('').trim();
+    
+    // Extract channel URL from navigation endpoint - try multiple sources
+    let channelUrl = '';
+    
+    // Try from runs navigation endpoint
+    const channelRun = (video.shortBylineText?.runs || video.longBylineText?.runs || [])[0];
+    if (channelRun?.navigationEndpoint) {
+      const endpoint = channelRun.navigationEndpoint;
+      channelUrl = endpoint.browseEndpoint?.canonicalBaseUrl ||
+                   endpoint.commandMetadata?.webCommandMetadata?.url ||
+                   '';
+    }
+    
+    // Try from channelThumbnailSupportedRenderers
+    if (!channelUrl && video.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer?.navigationEndpoint) {
+      const endpoint = video.channelThumbnailSupportedRenderers.channelThumbnailWithLinkRenderer.navigationEndpoint;
+      channelUrl = endpoint.browseEndpoint?.canonicalBaseUrl ||
+                   endpoint.commandMetadata?.webCommandMetadata?.url ||
+                   '';
+    }
+    
+    // Ensure full URL
+    if (channelUrl && !channelUrl.startsWith('http')) {
+      channelUrl = 'https://www.youtube.com' + channelUrl;
+    }
 
     // Playlist videos often don't have publish date, but might have video info
     const publishedText = video.videoInfo?.runs?.map(run => run.text).join('').trim() || '';
@@ -1344,7 +1511,7 @@
       duration = parseDurationFromLabel(video.lengthText.accessibility.accessibilityData.label);
     }
 
-    return { title, url, channel, time: publishedText, duration };
+    return { title, url, channel, channelUrl, time: publishedText, duration };
   }
 
   function normalizeVideoRenderer(video) {
@@ -1361,6 +1528,39 @@
       video.shortBylineText?.runs ||
       [];
     const channel = ownerRuns.map(run => run.text).join('').trim();
+    
+    // Extract channel URL from navigation endpoint - try multiple sources
+    let channelUrl = '';
+    
+    // Try from runs navigation endpoint
+    const channelRun = (video.longBylineText?.runs || video.ownerText?.runs || video.shortBylineText?.runs || [])[0];
+    if (channelRun?.navigationEndpoint) {
+      const endpoint = channelRun.navigationEndpoint;
+      channelUrl = endpoint.browseEndpoint?.canonicalBaseUrl ||
+                   endpoint.commandMetadata?.webCommandMetadata?.url ||
+                   '';
+    }
+    
+    // Try from ownerText directly
+    if (!channelUrl && video.ownerText?.runs?.[0]?.navigationEndpoint) {
+      const endpoint = video.ownerText.runs[0].navigationEndpoint;
+      channelUrl = endpoint.browseEndpoint?.canonicalBaseUrl ||
+                   endpoint.commandMetadata?.webCommandMetadata?.url ||
+                   '';
+    }
+    
+    // Try from channelThumbnailSupportedRenderers
+    if (!channelUrl && video.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer?.navigationEndpoint) {
+      const endpoint = video.channelThumbnailSupportedRenderers.channelThumbnailWithLinkRenderer.navigationEndpoint;
+      channelUrl = endpoint.browseEndpoint?.canonicalBaseUrl ||
+                   endpoint.commandMetadata?.webCommandMetadata?.url ||
+                   '';
+    }
+    
+    // Ensure full URL
+    if (channelUrl && !channelUrl.startsWith('http')) {
+      channelUrl = 'https://www.youtube.com' + channelUrl;
+    }
 
     const publishedText = video.publishedTimeText?.simpleText ||
       (video.publishedTimeText?.runs || []).map(run => run.text).join('').trim() ||
@@ -1399,7 +1599,7 @@
       }
     }
 
-    return { title, url, channel, time: publishedText, duration };
+    return { title, url, channel, channelUrl, time: publishedText, duration };
   }
 
   function collectVideosFromDom() {
@@ -1500,13 +1700,14 @@
         }
       } catch (e) {}
       
-      // STEP 3: Get channel name
+      // STEP 3: Get channel name and URL
       let channel = '';
+      let channelUrl = '';
       const channelSelectors = [
-        'ytd-channel-name yt-formatted-string#text',
-        'ytd-channel-name #text',
+        'ytd-channel-name yt-formatted-string#text a',
+        'ytd-channel-name #text a',
         'ytd-channel-name a',
-        '#channel-name yt-formatted-string',
+        '#channel-name yt-formatted-string a',
         '#channel-name a',
         'a[href*="/@"]',
         'a[href*="/channel/"]'
@@ -1518,9 +1719,26 @@
           channel = channelEl.textContent || '';
           channel = channel.trim();
           if (channel && channel.length > 1 && !channel.match(/^[\d:,.\s]+$/)) {
+            // Also get channel URL
+            const href = channelEl.href || channelEl.getAttribute('href') || '';
+            if (href && (href.includes('/@') || href.includes('/channel/') || href.includes('/c/'))) {
+              channelUrl = href.startsWith('/') ? 'https://www.youtube.com' + href : href;
+            }
             break;
           }
           channel = '';
+        }
+      }
+      
+      // If we still don't have channel URL, try finding any channel link
+      if (!channelUrl) {
+        const channelLinks = element.querySelectorAll('a[href*="/@"], a[href*="/channel/"], a[href*="/c/"]');
+        for (const link of channelLinks) {
+          const href = link.href || link.getAttribute('href') || '';
+          if (href) {
+            channelUrl = href.startsWith('/') ? 'https://www.youtube.com' + href : href;
+            break;
+          }
         }
       }
       
@@ -1655,7 +1873,7 @@
         }
       }
       
-      return { title, url, channel, time, duration };
+      return { title, url, channel, channelUrl, time, duration };
     } catch (e) {
       console.error('[PrimeYT] Error extracting data from element:', e);
       return null;
@@ -1832,6 +2050,943 @@
   }
 
   // ==========================================
+  // Channel Page Video List
+  // ==========================================
+
+  let channelSortOrder = 'newest'; // newest, views, oldest
+  let channelVideosCache = []; // Cache of all channel videos for sorting
+  let channelInfo = { name: '', subscribers: '', handle: '' };
+  let channelVideosDisplayed = 25; // Number of videos currently displayed
+  const CHANNEL_VIDEOS_INCREMENT = 25; // Load this many more when scrolling
+  let channelAutoplayObserver = null; // Observer to prevent autoplay on channel pages
+
+  // ==========================================
+  // Channel Page Autoplay Prevention
+  // ==========================================
+
+  function setupChannelAutoplayPrevention() {
+    if (!isChannelPage()) return;
+    
+    // Stop any currently playing videos
+    pauseAllVideos();
+    
+    // Watch for new videos that might start playing
+    if (channelAutoplayObserver) {
+      channelAutoplayObserver.disconnect();
+    }
+    
+    channelAutoplayObserver = new MutationObserver(() => {
+      if (isChannelPage()) {
+        pauseAllVideos();
+      }
+    });
+    
+    channelAutoplayObserver.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
+    
+    // Also listen for play events on any video element
+    document.addEventListener('play', handleVideoPlay, true);
+    
+    console.log('[PrimeYT] Channel autoplay prevention enabled');
+  }
+  
+  function stopChannelAutoplayPrevention() {
+    if (channelAutoplayObserver) {
+      channelAutoplayObserver.disconnect();
+      channelAutoplayObserver = null;
+    }
+    document.removeEventListener('play', handleVideoPlay, true);
+  }
+  
+  function handleVideoPlay(e) {
+    if (!isChannelPage()) return;
+    
+    const video = e.target;
+    if (video && video.tagName === 'VIDEO') {
+      video.pause();
+      console.log('[PrimeYT] Prevented video autoplay on channel page');
+    }
+  }
+  
+  function pauseAllVideos() {
+    const videos = document.querySelectorAll('video');
+    videos.forEach(video => {
+      if (!video.paused) {
+        video.pause();
+        console.log('[PrimeYT] Paused autoplaying video on channel page');
+      }
+    });
+  }
+
+  function getChannelSortOrder() {
+    return channelSortOrder;
+  }
+
+  function setChannelSortOrder(order) {
+    channelSortOrder = order;
+  }
+
+  function getChannelVideosCache() {
+    return channelVideosCache;
+  }
+
+  async function buildChannelVideoList(forceRebuild = false) {
+    if (!isChannelPage()) return;
+
+    // Prevent concurrent builds
+    if (isBuilding) return;
+
+    // Don't rebuild if list already exists (unless forced)
+    if (!forceRebuild) {
+      const existingList = document.getElementById('primeyt-video-list');
+      if (existingList && existingList.querySelectorAll('.primeyt-video-row').length > 0) {
+        return;
+      }
+    }
+
+    isBuilding = true;
+
+    try {
+      // Extract channel info
+      extractChannelInfo();
+
+      // Collect videos from both sources
+      const videosFromData = collectChannelVideosFromData();
+      const videosFromDom = collectChannelVideosFromDom();
+
+      const combined = [];
+      const seen = new Set();
+      [...videosFromData, ...videosFromDom].forEach(video => {
+        if (!video || !video.url || seen.has(video.url)) return;
+        seen.add(video.url);
+        combined.push(video);
+      });
+
+      console.log(`[PrimeYT] Channel build: found ${combined.length} videos (${videosFromData.length} from data, ${videosFromDom.length} from DOM)`);
+
+      if (combined.length === 0) {
+        buildAttempts++;
+        if (buildAttempts < 15) {
+          scheduleBuildChannelVideoList(500);
+        } else {
+          console.log('[PrimeYT] Unable to build channel list after multiple attempts');
+        }
+        return;
+      }
+
+      // Cache videos for sorting
+      channelVideosCache = combined;
+
+      // Sort and render initial list
+      const sorted = sortChannelVideos(combined, channelSortOrder);
+      renderChannelVideoList(sorted);
+      customListBuilt = true;
+      buildAttempts = 0;
+
+      // Now fetch continuation videos in background
+      if (continuationToken) {
+        fetchContinuationAndUpdate();
+      }
+    } finally {
+      isBuilding = false;
+    }
+  }
+
+  async function fetchContinuationAndUpdate() {
+    try {
+      const moreVideos = await fetchChannelContinuation();
+      
+      if (moreVideos.length > 0) {
+        console.log(`[PrimeYT] Adding ${moreVideos.length} continuation videos to cache`);
+        
+        // Add new videos to cache, avoiding duplicates
+        const seen = new Set(channelVideosCache.map(v => v.url));
+        let addedCount = 0;
+        
+        for (const video of moreVideos) {
+          if (video && video.url && !seen.has(video.url)) {
+            seen.add(video.url);
+            channelVideosCache.push(video);
+            addedCount++;
+          }
+        }
+        
+        if (addedCount > 0) {
+          console.log(`[PrimeYT] Added ${addedCount} new unique videos (total: ${channelVideosCache.length})`);
+          
+          // Re-render with all videos
+          const sorted = sortChannelVideos(channelVideosCache, channelSortOrder);
+          renderChannelVideoList(sorted, false); // Don't reset display count
+        }
+      }
+    } catch (e) {
+      console.log('[PrimeYT] Error in fetchContinuationAndUpdate:', e);
+    }
+  }
+
+  function scheduleBuildChannelVideoList(delay = 400, forceRebuild = false) {
+    if (buildDebounceTimer) {
+      clearTimeout(buildDebounceTimer);
+    }
+    buildDebounceTimer = setTimeout(() => {
+      buildDebounceTimer = null;
+      buildChannelVideoList(forceRebuild);
+    }, delay);
+  }
+
+  function extractChannelInfo() {
+    // Try to get channel info from ytInitialData
+    try {
+      const data = window.ytInitialData;
+      if (data) {
+        // Channel metadata
+        const metadata = data.metadata?.channelMetadataRenderer;
+        if (metadata) {
+          channelInfo.name = metadata.title || '';
+          channelInfo.handle = metadata.vanityChannelUrl?.split('/').pop() || '';
+        }
+
+        // Header for subscriber count
+        const header = data.header?.c4TabbedHeaderRenderer || data.header?.pageHeaderRenderer;
+        if (header) {
+          channelInfo.name = channelInfo.name || header.title || '';
+          channelInfo.subscribers = header.subscriberCountText?.simpleText || '';
+        }
+
+        // Try pageHeaderViewModel for newer layout
+        const pageHeader = data.header?.pageHeaderRenderer?.content?.pageHeaderViewModel;
+        if (pageHeader) {
+          channelInfo.name = pageHeader.title?.dynamicTextViewModel?.text?.content || channelInfo.name;
+          channelInfo.subscribers = pageHeader.metadata?.contentMetadataViewModel?.metadataRows?.[0]?.metadataParts?.[0]?.text?.content || channelInfo.subscribers;
+        }
+      }
+    } catch (e) {
+      console.log('[PrimeYT] Error extracting channel info:', e);
+    }
+
+    // Fallback: get from DOM
+    if (!channelInfo.name) {
+      const nameEl = document.querySelector('yt-formatted-string#channel-name, #channel-name yt-formatted-string, ytd-channel-name yt-formatted-string');
+      channelInfo.name = nameEl?.textContent?.trim() || '';
+    }
+
+    if (!channelInfo.subscribers) {
+      const subsEl = document.querySelector('#subscriber-count, yt-formatted-string#subscriber-count');
+      channelInfo.subscribers = subsEl?.textContent?.trim() || '';
+    }
+
+    console.log('[PrimeYT] Channel info:', channelInfo);
+  }
+
+  // Track continuation fetching state
+  let continuationToken = null;
+  let isFetchingContinuation = false;
+  let channelContinuationApiKey = null;
+
+  function collectChannelVideosFromData() {
+    const data = window.ytInitialData;
+    if (!data) return [];
+
+    const videos = [];
+    const stack = [data];
+    const MAX_VIDEOS = 500; // Increased to handle more videos
+    const MAX_NODES = 15000;
+    let traversed = 0;
+    const seen = new WeakSet();
+
+    // Also look for continuation token and API key
+    continuationToken = null;
+    channelContinuationApiKey = null;
+
+    while (stack.length && traversed < MAX_NODES && videos.length < MAX_VIDEOS) {
+      const node = stack.pop();
+      traversed++;
+
+      if (!node || typeof node !== 'object') continue;
+      if (seen.has(node)) continue;
+      seen.add(node);
+
+      // Look for continuation token
+      if (node.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token) {
+        continuationToken = node.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
+      }
+      
+      // Also check for token in different locations
+      if (node.token && typeof node.token === 'string' && node.token.length > 50) {
+        if (!continuationToken) {
+          continuationToken = node.token;
+        }
+      }
+
+      // gridVideoRenderer (channel videos tab)
+      if (node.gridVideoRenderer) {
+        const video = normalizeGridVideoRenderer(node.gridVideoRenderer);
+        if (video) videos.push(video);
+        if (videos.length >= MAX_VIDEOS) break;
+      }
+
+      // richItemRenderer with videoRenderer (channel home tab)
+      if (node.richItemRenderer?.content?.videoRenderer) {
+        const video = normalizeVideoRenderer(node.richItemRenderer.content.videoRenderer);
+        if (video) videos.push(video);
+        if (videos.length >= MAX_VIDEOS) break;
+      }
+
+      // Direct videoRenderer
+      if (node.videoRenderer) {
+        const video = normalizeVideoRenderer(node.videoRenderer);
+        if (video) videos.push(video);
+        if (videos.length >= MAX_VIDEOS) break;
+      }
+
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          if (child && typeof child === 'object') stack.push(child);
+        }
+      } else {
+        for (const key in node) {
+          if (Object.prototype.hasOwnProperty.call(node, key)) {
+            const child = node[key];
+            if (child && typeof child === 'object') stack.push(child);
+          }
+        }
+      }
+    }
+
+    // Try to get API key from ytcfg
+    try {
+      if (window.ytcfg && window.ytcfg.get) {
+        channelContinuationApiKey = window.ytcfg.get('INNERTUBE_API_KEY');
+      }
+    } catch (e) {}
+
+    if (continuationToken) {
+      console.log('[PrimeYT] Found continuation token, will fetch more videos');
+    }
+
+    return videos;
+  }
+
+  async function fetchChannelContinuation() {
+    if (!continuationToken || isFetchingContinuation) return [];
+    
+    isFetchingContinuation = true;
+    const allNewVideos = [];
+    let currentToken = continuationToken;
+    let fetchCount = 0;
+    const MAX_FETCHES = 20; // Limit to prevent infinite loops
+    
+    try {
+      // Get API key
+      let apiKey = channelContinuationApiKey;
+      if (!apiKey) {
+        try {
+          if (window.ytcfg && window.ytcfg.get) {
+            apiKey = window.ytcfg.get('INNERTUBE_API_KEY');
+          }
+        } catch (e) {}
+      }
+      
+      if (!apiKey) {
+        console.log('[PrimeYT] No API key found, cannot fetch continuation');
+        return [];
+      }
+      
+      while (currentToken && fetchCount < MAX_FETCHES) {
+        fetchCount++;
+        console.log(`[PrimeYT] Fetching continuation ${fetchCount}...`);
+        
+        const response = await fetch(`https://www.youtube.com/youtubei/v1/browse?key=${apiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: 'WEB',
+                clientVersion: '2.20240101.00.00'
+              }
+            },
+            continuation: currentToken
+          })
+        });
+        
+        if (!response.ok) {
+          console.log('[PrimeYT] Continuation fetch failed:', response.status);
+          break;
+        }
+        
+        const data = await response.json();
+        const { videos, nextToken } = extractVideosFromContinuation(data);
+        
+        if (videos.length === 0) {
+          console.log('[PrimeYT] No more videos in continuation');
+          break;
+        }
+        
+        allNewVideos.push(...videos);
+        console.log(`[PrimeYT] Got ${videos.length} more videos (total: ${allNewVideos.length})`);
+        
+        currentToken = nextToken;
+        
+        // Small delay between requests to be nice to YouTube's servers
+        if (currentToken) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    } catch (e) {
+      console.log('[PrimeYT] Error fetching continuation:', e);
+    } finally {
+      isFetchingContinuation = false;
+      continuationToken = null; // Clear token after fetching
+    }
+    
+    return allNewVideos;
+  }
+
+  function extractVideosFromContinuation(data) {
+    const videos = [];
+    let nextToken = null;
+    const stack = [data];
+    const MAX_NODES = 5000;
+    let traversed = 0;
+    const seen = new WeakSet();
+    
+    while (stack.length && traversed < MAX_NODES) {
+      const node = stack.pop();
+      traversed++;
+      
+      if (!node || typeof node !== 'object') continue;
+      if (seen.has(node)) continue;
+      seen.add(node);
+      
+      // Look for next continuation token
+      if (node.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token) {
+        nextToken = node.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
+      }
+      
+      // gridVideoRenderer
+      if (node.gridVideoRenderer) {
+        const video = normalizeGridVideoRenderer(node.gridVideoRenderer);
+        if (video) videos.push(video);
+      }
+      
+      // richItemRenderer with videoRenderer
+      if (node.richItemRenderer?.content?.videoRenderer) {
+        const video = normalizeVideoRenderer(node.richItemRenderer.content.videoRenderer);
+        if (video) videos.push(video);
+      }
+      
+      // Direct videoRenderer
+      if (node.videoRenderer) {
+        const video = normalizeVideoRenderer(node.videoRenderer);
+        if (video) videos.push(video);
+      }
+      
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          if (child && typeof child === 'object') stack.push(child);
+        }
+      } else {
+        for (const key in node) {
+          if (Object.prototype.hasOwnProperty.call(node, key)) {
+            const child = node[key];
+            if (child && typeof child === 'object') stack.push(child);
+          }
+        }
+      }
+    }
+    
+    return { videos, nextToken };
+  }
+
+  function normalizeGridVideoRenderer(video) {
+    const videoId = video.videoId;
+    const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
+    if (!url) return null;
+
+    const title = video.title?.simpleText ||
+      (video.title?.runs || []).map(run => run.text).join('').trim();
+    if (!title) return null;
+
+    // For channel videos, channel name is the current channel
+    const channel = channelInfo.name || '';
+
+    const publishedText = video.publishedTimeText?.simpleText ||
+      (video.publishedTimeText?.runs || []).map(run => run.text).join('').trim() || '';
+
+    // View count
+    let views = 0;
+    const viewCountText = video.viewCountText?.simpleText || 
+      (video.viewCountText?.runs || []).map(run => run.text).join('').trim() || '';
+    const viewMatch = viewCountText.match(/([\d,.]+)\s*(K|M|B)?\s*view/i);
+    if (viewMatch) {
+      let num = parseFloat(viewMatch[1].replace(/,/g, ''));
+      const multiplier = viewMatch[2]?.toUpperCase();
+      if (multiplier === 'K') num *= 1000;
+      else if (multiplier === 'M') num *= 1000000;
+      else if (multiplier === 'B') num *= 1000000000;
+      views = Math.round(num);
+    }
+
+    // Duration
+    let duration = '';
+    duration = video.lengthText?.simpleText ||
+      (video.lengthText?.runs || []).map(run => run.text).join('').trim();
+
+    if (!duration && video.thumbnailOverlays) {
+      for (const overlay of video.thumbnailOverlays) {
+        if (overlay.thumbnailOverlayTimeStatusRenderer) {
+          const renderer = overlay.thumbnailOverlayTimeStatusRenderer;
+          duration = renderer.text?.simpleText ||
+            (renderer.text?.runs || []).map(run => run.text).join('').trim();
+          if (duration) break;
+        }
+      }
+    }
+
+    // Parse duration to seconds for sorting
+    const durationSecs = parseDurationToSeconds(duration);
+
+    // Parse relative date to timestamp for sorting
+    const timestamp = parseRelativeDateToTimestamp(publishedText);
+
+    return { 
+      title, 
+      url, 
+      channel, 
+      time: publishedText, 
+      duration, 
+      views,
+      viewsFormatted: formatViews(views),
+      durationSecs,
+      timestamp
+    };
+  }
+
+  function collectChannelVideosFromDom() {
+    // Try multiple selectors for channel video elements
+    const selectors = [
+      'ytd-grid-video-renderer',
+      'ytd-rich-item-renderer',
+      'ytd-video-renderer'
+    ];
+
+    const videoElements = [];
+    selectors.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      videoElements.push(...Array.from(elements));
+    });
+
+    const uniqueElements = Array.from(new Set(videoElements));
+    const videos = [];
+
+    uniqueElements.forEach((el) => {
+      if (el.offsetParent === null) return;
+
+      const data = extractChannelVideoData(el);
+      if (data && data.title && data.url) {
+        videos.push(data);
+      }
+    });
+
+    return videos;
+  }
+
+  function extractChannelVideoData(element) {
+    try {
+      const watchLinks = element.querySelectorAll('a[href*="/watch"]');
+
+      let url = '';
+      let title = '';
+
+      for (const link of watchLinks) {
+        const href = link.href || link.getAttribute('href') || '';
+        if (!href.includes('/watch')) continue;
+
+        if (!url) {
+          url = href;
+          if (url.startsWith('/')) url = 'https://www.youtube.com' + url;
+        }
+
+        if (link.id === 'video-title-link' || link.id === 'video-title') {
+          title = link.getAttribute('title') || link.textContent || '';
+          if (title) break;
+        }
+      }
+
+      if (!title) {
+        const titleSelectors = ['#video-title', 'a[id*="video-title"]', 'h3 a', 'h3 yt-formatted-string'];
+        for (const selector of titleSelectors) {
+          const el = element.querySelector(selector);
+          if (el) {
+            title = el.getAttribute('title') || el.textContent || '';
+            if (title) break;
+          }
+        }
+      }
+
+      title = title.trim();
+      if (!title || !url || !url.includes('/watch')) return null;
+
+      // Clean URL
+      try {
+        const urlObj = new URL(url);
+        const videoId = urlObj.searchParams.get('v');
+        if (videoId) {
+          url = `https://www.youtube.com/watch?v=${videoId}`;
+        }
+      } catch (e) {}
+
+      // Get time and views
+      let time = '';
+      let views = 0;
+      const metaLine = element.querySelector('#metadata-line, #metadata');
+      if (metaLine) {
+        const spans = metaLine.querySelectorAll('span');
+        spans.forEach(span => {
+          const text = span.textContent || '';
+          if (text.includes('ago')) {
+            time = text.trim();
+          }
+          if (text.includes('view')) {
+            const viewMatch = text.match(/([\d,.]+)\s*(K|M|B)?\s*view/i);
+            if (viewMatch) {
+              let num = parseFloat(viewMatch[1].replace(/,/g, ''));
+              const multiplier = viewMatch[2]?.toUpperCase();
+              if (multiplier === 'K') num *= 1000;
+              else if (multiplier === 'M') num *= 1000000;
+              else if (multiplier === 'B') num *= 1000000000;
+              views = Math.round(num);
+            }
+          }
+        });
+      }
+
+      // Get duration
+      let duration = '';
+      const durationEl = element.querySelector('ytd-thumbnail-overlay-time-status-renderer #text');
+      if (durationEl) {
+        const text = durationEl.textContent?.trim() || '';
+        if (text.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+          duration = text;
+        }
+      }
+
+      const durationSecs = parseDurationToSeconds(duration);
+      const timestamp = parseRelativeDateToTimestamp(time);
+
+      return { 
+        title, 
+        url, 
+        channel: channelInfo.name || '', 
+        time, 
+        duration, 
+        views,
+        viewsFormatted: formatViews(views),
+        durationSecs,
+        timestamp
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function parseDurationToSeconds(duration) {
+    if (!duration) return 0;
+    const parts = duration.split(':').map(p => parseInt(p, 10));
+    if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    } else if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
+  }
+
+  function parseRelativeDateToTimestamp(timeStr) {
+    if (!timeStr) return 0;
+
+    // Clean up "Streamed" prefix
+    timeStr = timeStr.replace(/^Streamed\s+/i, '');
+
+    const match = timeStr.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/i);
+    if (!match) return 0;
+
+    const val = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+
+    const now = new Date();
+    const date = new Date(now);
+
+    // Use proper date methods for accurate calculation
+    if (unit === 'second') date.setSeconds(now.getSeconds() - val);
+    else if (unit === 'minute') date.setMinutes(now.getMinutes() - val);
+    else if (unit === 'hour') date.setHours(now.getHours() - val);
+    else if (unit === 'day') date.setDate(now.getDate() - val);
+    else if (unit === 'week') date.setDate(now.getDate() - (val * 7));
+    else if (unit === 'month') date.setMonth(now.getMonth() - val);
+    else if (unit === 'year') date.setFullYear(now.getFullYear() - val);
+
+    return date.getTime();
+  }
+
+  function formatViews(views) {
+    if (!views || views === 0) return '';
+    if (views >= 1000000000) return (views / 1000000000).toFixed(1).replace(/\.0$/, '') + 'B';
+    if (views >= 1000000) return (views / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (views >= 1000) return (views / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return views.toString();
+  }
+
+  function sortChannelVideos(videos, order) {
+    const sorted = [...videos];
+
+    switch (order) {
+      case 'newest':
+        sorted.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        break;
+      case 'oldest':
+        sorted.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        break;
+      case 'views':
+        sorted.sort((a, b) => (b.views || 0) - (a.views || 0));
+        break;
+    }
+
+    return sorted;
+  }
+
+  function renderChannelVideoList(videos, resetDisplayCount = true) {
+    // Remove existing list
+    const existingList = document.getElementById('primeyt-video-list');
+    const existingWrapper = document.getElementById('primeyt-list-wrapper');
+    if (existingList) existingList.remove();
+    if (existingWrapper) existingWrapper.remove();
+
+    // Reset display count when sorting changes
+    if (resetDisplayCount) {
+      channelVideosDisplayed = 25;
+    }
+
+    // Get watched video IDs
+    const watchedIds = window.PrimeYTStats ? window.PrimeYTStats.getWatchedVideoIds() : new Set();
+
+    const list = document.createElement('div');
+    list.id = 'primeyt-video-list';
+    list.classList.add('primeyt-channel-list');
+
+    // Create header with channel info and sort controls
+    const header = document.createElement('div');
+    header.id = 'primeyt-channel-header';
+    
+    const showingCount = Math.min(channelVideosDisplayed, videos.length);
+    const hasMore = videos.length > channelVideosDisplayed;
+    
+    header.innerHTML = `
+      <div class="primeyt-channel-info">
+        <span class="primeyt-channel-name">${escapeHtml(channelInfo.name)}</span>
+        <span class="primeyt-channel-subs">${escapeHtml(channelInfo.subscribers)}</span>
+        <span class="primeyt-channel-count">${showingCount} of ${videos.length} videos</span>
+      </div>
+      <div class="primeyt-sort-controls">
+        <span class="primeyt-sort-label">Sort:</span>
+        <span class="primeyt-sort-option ${channelSortOrder === 'newest' ? 'active' : ''}" data-sort="newest" title="s then n">Newest</span>
+        <span class="primeyt-sort-option ${channelSortOrder === 'views' ? 'active' : ''}" data-sort="views" title="s then v">Views</span>
+        <span class="primeyt-sort-option ${channelSortOrder === 'oldest' ? 'active' : ''}" data-sort="oldest" title="s then o">Oldest</span>
+        <span class="primeyt-sort-hint">/ to filter · s+key to sort</span>
+      </div>
+    `;
+
+    // Add click handlers for sort options
+    header.querySelectorAll('.primeyt-sort-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const newOrder = opt.dataset.sort;
+        channelSortOrder = newOrder;
+        const sorted = sortChannelVideos(channelVideosCache, newOrder);
+        renderChannelVideoList(sorted, true);
+      });
+    });
+
+    // Only show up to channelVideosDisplayed
+    const videosToShow = videos.slice(0, channelVideosDisplayed);
+
+    // Get current channel URL from page path (for channel videos)
+    const currentChannelUrl = 'https://www.youtube.com' + window.location.pathname.split('/').slice(0, 2).join('/');
+
+    videosToShow.forEach((video, index) => {
+      const row = document.createElement('div');
+      row.className = 'primeyt-video-row';
+      row.dataset.url = video.url;
+      row.dataset.index = index;
+      row.dataset.channelUrl = video.channelUrl || currentChannelUrl;
+
+      const videoId = getVideoIdFromUrl(video.url);
+      const isWatched = videoId && watchedIds.has(videoId);
+
+      if (isWatched) {
+        row.classList.add('primeyt-watched');
+      }
+
+      // Clean title - limit to 8 words for channel page
+      let cleanTitle = video.title.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+      const words = cleanTitle.split(' ');
+      if (words.length > 8) {
+        cleanTitle = words.slice(0, 8).join(' ') + '...';
+      }
+
+      const durationMin = formatDurationToMinutes(video.duration);
+      const dateStr = formatChannelVideoDate(video.timestamp);
+      const watchedIndicator = isWatched ? '<span class="primeyt-watched-icon">✓</span>' : '';
+
+      row.innerHTML = `
+        <span class="primeyt-line-number" data-index="${index}">${index}</span>
+        <div class="primeyt-video-left">
+          ${watchedIndicator}
+          <div class="primeyt-video-title" title="${escapeHtml(video.title)}">${escapeHtml(cleanTitle)}</div>
+        </div>
+        <div class="primeyt-video-right">
+          <div class="primeyt-video-views">${escapeHtml(video.viewsFormatted)}</div>
+          <div class="primeyt-video-duration">${escapeHtml(durationMin)}</div>
+          <div class="primeyt-video-date">${escapeHtml(dateStr)}</div>
+        </div>
+      `;
+
+      row.addEventListener('click', () => {
+        window.location.href = video.url;
+      });
+
+      list.appendChild(row);
+    });
+
+    // Add "load more" indicator if there are more videos
+    if (hasMore) {
+      const loadMore = document.createElement('div');
+      loadMore.id = 'primeyt-load-more';
+      loadMore.className = 'primeyt-load-more';
+      loadMore.innerHTML = `<span>Scroll for more (${videos.length - channelVideosDisplayed} remaining)</span>`;
+      list.appendChild(loadMore);
+    }
+
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.id = 'primeyt-list-wrapper';
+    wrapper.appendChild(header);
+    wrapper.appendChild(list);
+
+    // Add scroll handler for loading more
+    wrapper.addEventListener('scroll', handleChannelScroll);
+
+    document.body.appendChild(wrapper);
+    document.body.classList.add('primeyt-list-active');
+
+    console.log(`[PrimeYT] Channel list: showing ${showingCount}/${videos.length} videos, sorted by ${channelSortOrder}`);
+
+    // Start duration updater
+    startDurationUpdater();
+  }
+
+  function handleChannelScroll(e) {
+    const wrapper = e.target;
+    const scrollBottom = wrapper.scrollHeight - wrapper.scrollTop - wrapper.clientHeight;
+    
+    // Load more when within 200px of bottom
+    if (scrollBottom < 200) {
+      const sortedVideos = sortChannelVideos(channelVideosCache, channelSortOrder);
+      
+      if (channelVideosDisplayed < sortedVideos.length) {
+        channelVideosDisplayed += CHANNEL_VIDEOS_INCREMENT;
+        renderChannelVideoList(sortedVideos, false);
+      }
+      
+      // Also trigger YouTube's lazy loading to fetch more videos
+      triggerYouTubeLazyLoad();
+      
+      // If we've shown all cached videos and have a continuation token, fetch more
+      if (channelVideosDisplayed >= sortedVideos.length && continuationToken && !isFetchingContinuation) {
+        fetchContinuationAndUpdate();
+      }
+    }
+  }
+  
+  // Track last time we triggered lazy load to debounce
+  let lastLazyLoadTrigger = 0;
+  
+  function triggerYouTubeLazyLoad() {
+    // Debounce - don't trigger more than once per second
+    const now = Date.now();
+    if (now - lastLazyLoadTrigger < 1000) return;
+    lastLazyLoadTrigger = now;
+    
+    // Find YouTube's scrollable container and scroll it to trigger lazy loading
+    // YouTube typically loads more content when you scroll to the bottom
+    const scrollableContainers = [
+      document.querySelector('ytd-page-manager'),
+      document.querySelector('#page-manager'),
+      document.querySelector('ytd-browse'),
+      document.documentElement,
+      document.body
+    ];
+    
+    for (const container of scrollableContainers) {
+      if (container) {
+        // Scroll to bottom to trigger YouTube's infinite scroll
+        const currentScroll = container.scrollTop;
+        const maxScroll = container.scrollHeight - container.clientHeight;
+        
+        if (maxScroll > currentScroll) {
+          container.scrollTop = maxScroll;
+          console.log('[PrimeYT] Triggered lazy load scroll on', container.tagName || 'element');
+        }
+      }
+    }
+    
+    // Also dispatch scroll event to trigger any scroll listeners
+    window.dispatchEvent(new Event('scroll'));
+  }
+
+  function formatChannelVideoDate(timestamp) {
+    if (!timestamp || timestamp === 0) return '';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    
+    // Calculate difference in days
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    if (diffDays < 365) {
+      // Show month and day for this year
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    // Show month, day, year for older videos
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+  }
+
+  function resortChannelVideos(order) {
+    if (!isChannelPage() || channelVideosCache.length === 0) return;
+    
+    channelSortOrder = order;
+    const sorted = sortChannelVideos(channelVideosCache, order);
+    renderChannelVideoList(sorted, true); // Reset to 25 videos when sorting changes
+  }
+
+  // Expose functions globally for keyboard module
+  window.PrimeYTChannel = {
+    isChannelPage,
+    getChannelSortOrder,
+    setChannelSortOrder,
+    resortChannelVideos,
+    getChannelVideosCache
+  };
+
+  // ==========================================
   // Homepage Message
   // ==========================================
   
@@ -1870,6 +3025,7 @@
     if (path === '/') {
       showHomepageMessage();
       destroyCustomList();
+      stopChannelAutoplayPrevention();
     } else {
       removeHomepageMessage();
     }
@@ -1880,15 +3036,19 @@
       setTimeout(enableTheaterMode, 500);
       setTimeout(createProgressBar, 800);
       setTimeout(setupCaptionStyling, 1000);
+      setTimeout(setupEndCardHiding, 500);
       destroyCustomList();
+      stopChannelAutoplayPrevention();
     } else {
       destroyProgressBar();
       destroyCaptionStyling();
+      stopEndCardHiding();
     }
     
     // Handle subscriptions page, search page, and playlist pages
     // Show cached list immediately, then refresh with fresh data
     if (isSubscriptionsPage() || isSearchPage() || isPlaylistPage()) {
+      stopChannelAutoplayPrevention();
       if (!customListBuilt && !isBuilding) {
         // Try to show cached list instantly
         const showedCache = showCachedListImmediately();
@@ -1901,7 +3061,16 @@
           scheduleBuildCustomVideoList(400);
         }
       }
+    } else if (isChannelPage()) {
+      // Handle channel pages with custom video list
+      if (!customListBuilt && !isBuilding) {
+        scheduleBuildChannelVideoList(500);
+      }
+      // Prevent autoplay on channel pages
+      setupChannelAutoplayPrevention();
     } else if (path !== '/watch' && path !== '/') {
+      // Stop autoplay prevention when leaving channel pages
+      stopChannelAutoplayPrevention();
       destroyCustomList();
     }
     
@@ -1931,7 +3100,8 @@
     // Watch for new videos being added to the feed (infinite scroll ONLY)
     // This observer only handles incremental updates when list already exists
     const feedObserver = new MutationObserver((mutations) => {
-      if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage()) return;
+      const onChannelPage = isChannelPage();
+      if (!isSubscriptionsPage() && !isSearchPage() && !isPlaylistPage() && !onChannelPage) return;
       
       // Only handle infinite scroll if list is already built
       // Initial build is handled by yt-navigate-finish
@@ -1946,9 +3116,11 @@
                 node.matches('ytd-rich-item-renderer') ||
                 node.matches('ytd-video-renderer') ||
                 node.matches('ytd-playlist-video-renderer') ||
+                node.matches('ytd-grid-video-renderer') ||
                 node.querySelector?.('ytd-rich-item-renderer') ||
                 node.querySelector?.('ytd-video-renderer') ||
-                node.querySelector?.('ytd-playlist-video-renderer')
+                node.querySelector?.('ytd-playlist-video-renderer') ||
+                node.querySelector?.('ytd-grid-video-renderer')
               )) {
                 shouldRebuild = true;
                 break;
@@ -1960,10 +3132,15 @@
       }
       
       if (shouldRebuild) {
-        // Invalidate cache for infinite scroll (new videos added)
-        videoDataCache = { key: '', videos: [] };
-        // Longer debounce for scroll-based updates, force rebuild to add new videos
-        scheduleBuildCustomVideoList(800, true);
+        if (onChannelPage) {
+          // For channel pages, rebuild the channel video list
+          scheduleBuildChannelVideoList(500, true);
+        } else {
+          // Invalidate cache for infinite scroll (new videos added)
+          videoDataCache = { key: '', videos: [] };
+          // Longer debounce for scroll-based updates, force rebuild to add new videos
+          scheduleBuildCustomVideoList(800, true);
+        }
       }
     });
     
@@ -1973,6 +3150,13 @@
     window.addEventListener('yt-navigate-finish', () => {
       // Clear in-memory cache on navigation (not localStorage cache)
       videoDataCache = { key: '', videos: [] };
+      
+      // Reset channel cache on navigation
+      channelVideosCache = [];
+      channelInfo = { name: '', subscribers: '', handle: '' };
+      continuationToken = null;
+      isFetchingContinuation = false;
+      channelContinuationApiKey = null;
 
       // Update page state
       updatePageState();
@@ -2003,6 +3187,10 @@
           // Use forceRebuild=true to handle case where old list exists from previous page
           scheduleBuildCustomVideoList(400, true);
         }
+      } else if (isChannelPage()) {
+        // Handle channel page navigation
+        resetBuildState();
+        scheduleBuildChannelVideoList(500);
       }
     });
     
@@ -2052,6 +3240,9 @@
   
   function onReady() {
     console.log('[PrimeYT] Initializing...');
+    
+    // Clear old caches immediately (before anything else)
+    clearOldCaches();
 
     // FIRST: Load background worker cache immediately (available before page loads)
     loadBackgroundCache().then(() => {

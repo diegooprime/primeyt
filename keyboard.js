@@ -18,7 +18,9 @@ const PrimeYTKeyboard = (function() {
     countTimer: null,     // Reset count after timeout
     chapterOverlay: null, // Chapter navigation modal
     chapters: [],         // Cached chapters for current video
-    focusedChapter: -1    // Currently focused chapter in modal
+    focusedChapter: -1,   // Currently focused chapter in modal
+    sortMode: false,      // Sort mode active (for channel pages)
+    sortTimer: null       // Reset sort mode after timeout
   };
   
   // ==========================================
@@ -53,9 +55,10 @@ const PrimeYTKeyboard = (function() {
       
       // Actions
       'w': () => addToWatchLater(),
-      's': () => null, // Disabled - conflicts with other extension
+      's': () => enterSortMode(), // Sort mode on channel pages
       'S': () => shareVideo(), // Shift+S to copy link
       'x': () => removeFromPlaylist(), // Remove focused video from playlist
+      'Tab': () => goToChannel(), // Go to channel (works on watch page and list)
     },
     
     // Leader key chords (Space + keys)
@@ -127,6 +130,26 @@ const PrimeYTKeyboard = (function() {
       } else if (e.key === 'u') {
         // Close modal if u pressed again
         closeChapterModal();
+      }
+      return;
+    }
+    
+    // Handle sort mode (channel pages)
+    if (state.sortMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const sortKeys = {
+        'n': 'newest',
+        'v': 'views',
+        'o': 'oldest'
+      };
+      
+      if (e.key === 'Escape') {
+        exitSortMode();
+      } else if (sortKeys[e.key]) {
+        applySortOrder(sortKeys[e.key]);
+        exitSortMode();
       }
       return;
     }
@@ -2292,6 +2315,312 @@ function isTyping(element) {
     return true;
   }
   
+  // ==========================================
+  // Sort Mode (Channel Pages)
+  // ==========================================
+  
+  function isOnChannelPage() {
+    return window.PrimeYTChannel?.isChannelPage?.() || false;
+  }
+  
+  function enterSortMode() {
+    // Only on channel pages
+    if (!isOnChannelPage()) return null;
+    
+    state.sortMode = true;
+    showSortIndicator();
+    
+    // Auto-exit after timeout
+    if (state.sortTimer) clearTimeout(state.sortTimer);
+    state.sortTimer = setTimeout(() => {
+      exitSortMode();
+    }, 2000);
+    
+    return true;
+  }
+  
+  function exitSortMode() {
+    state.sortMode = false;
+    if (state.sortTimer) {
+      clearTimeout(state.sortTimer);
+      state.sortTimer = null;
+    }
+    hideSortIndicator();
+  }
+  
+  function applySortOrder(order) {
+    if (!window.PrimeYTChannel?.resortChannelVideos) return;
+    
+    window.PrimeYTChannel.resortChannelVideos(order);
+    
+    const labels = {
+      'newest': 'Newest first',
+      'views': 'Most viewed',
+      'oldest': 'Oldest first'
+    };
+    
+    showToast(`Sorted: ${labels[order]}`);
+  }
+  
+  function showSortIndicator() {
+    if (!state.leaderIndicator) createLeaderIndicator();
+    state.leaderIndicator.classList.add('active');
+    const keysSpan = state.leaderIndicator.querySelector('.keys');
+    const labelSpan = state.leaderIndicator.querySelector('.label');
+    labelSpan.textContent = 'SORT';
+    keysSpan.textContent = 'n·v·o';
+  }
+  
+  function hideSortIndicator() {
+    if (state.leaderIndicator) {
+      state.leaderIndicator.classList.remove('active');
+      const labelSpan = state.leaderIndicator.querySelector('.label');
+      if (labelSpan) labelSpan.textContent = 'LEADER';
+    }
+  }
+  
+  // ==========================================
+  // Go to Channel
+  // ==========================================
+  
+  function goToChannel() {
+    if (isOnWatchPage()) {
+      return goToChannelFromWatchPage();
+    } else if (state.focusedVideo) {
+      return goToChannelFromList();
+    }
+    return null;
+  }
+  
+  function goToChannelFromWatchPage() {
+    // Method 1: Find channel link in video metadata
+    const channelSelectors = [
+      // Modern YouTube layout (2024+)
+      'ytd-watch-metadata ytd-channel-name a',
+      'ytd-watch-metadata #channel-name a',
+      '#owner ytd-channel-name a',
+      '#owner #channel-name a',
+      // Channel avatar link
+      '#owner a[href*="/@"]',
+      '#owner a[href*="/channel/"]',
+      '#owner a[href*="/c/"]',
+      // Fallback selectors
+      'ytd-video-owner-renderer a[href*="/@"]',
+      'ytd-video-owner-renderer a[href*="/channel/"]',
+      '#upload-info a[href*="/@"]',
+      '#upload-info a[href*="/channel/"]',
+      // Even more fallbacks
+      'a.yt-simple-endpoint[href*="/@"]',
+      'a.yt-simple-endpoint[href*="/channel/"]'
+    ];
+    
+    for (const selector of channelSelectors) {
+      const link = document.querySelector(selector);
+      if (link && link.href) {
+        console.log('[PrimeYT] Found channel link:', link.href);
+        window.location.href = link.href;
+        return true;
+      }
+    }
+    
+    // Method 2: Extract from ytInitialPlayerResponse
+    try {
+      const channelUrl = window.ytInitialPlayerResponse?.videoDetails?.channelId;
+      if (channelUrl) {
+        window.location.href = `https://www.youtube.com/channel/${channelUrl}`;
+        return true;
+      }
+    } catch (e) {
+      console.log('[PrimeYT] Could not get channel from playerResponse:', e);
+    }
+    
+    showSeekFeedback('Channel not found');
+    return true;
+  }
+  
+  function goToChannelFromList() {
+    if (!state.focusedVideo) {
+      showToast('No video selected');
+      return null;
+    }
+    
+    let channelUrl = null;
+    
+    // Check if it's a custom PrimeYT row
+    if (state.focusedVideo.classList.contains('primeyt-video-row')) {
+      // First, try to get channel URL directly from dataset (fastest)
+      channelUrl = state.focusedVideo.dataset.channelUrl;
+      console.log('[PrimeYT] Channel URL from dataset:', channelUrl);
+      
+      if (!channelUrl) {
+        // Fallback: try to find from original element or ytInitialData
+        const videoUrl = state.focusedVideo.dataset.url;
+        console.log('[PrimeYT] Video URL:', videoUrl);
+        
+        if (!videoUrl) {
+          showToast('No video URL');
+          return true;
+        }
+        
+        const videoId = extractVideoId(videoUrl);
+        console.log('[PrimeYT] Video ID:', videoId);
+        
+        if (!videoId) {
+          showToast('Invalid video URL');
+          return true;
+        }
+        
+        // Find the original YouTube element to get channel link
+        const originalElement = findOriginalYouTubeElement(videoId);
+        console.log('[PrimeYT] Original element found:', !!originalElement);
+        
+        if (originalElement) {
+          channelUrl = extractChannelUrlFromElement(originalElement);
+          console.log('[PrimeYT] Channel URL from original element:', channelUrl);
+        }
+        
+        // Fallback: try to get from ytInitialData
+        if (!channelUrl) {
+          channelUrl = findChannelUrlFromData(videoId);
+          console.log('[PrimeYT] Channel URL from ytInitialData:', channelUrl);
+        }
+      }
+    } else {
+      // Standard YouTube element - extract channel link directly
+      channelUrl = extractChannelUrlFromElement(state.focusedVideo);
+    }
+    
+    if (channelUrl) {
+      console.log('[PrimeYT] Navigating to channel:', channelUrl);
+      window.location.href = channelUrl;
+      return true;
+    }
+    
+    showToast('Channel not found');
+    return true;
+  }
+  
+  function extractChannelUrlFromElement(element) {
+    // Look for channel link in the element
+    const channelSelectors = [
+      'ytd-channel-name a',
+      '#channel-name a',
+      'a[href*="/@"]',
+      'a[href*="/channel/"]',
+      'a[href*="/c/"]',
+      '#text.ytd-channel-name',
+      '.ytd-channel-name a'
+    ];
+    
+    for (const selector of channelSelectors) {
+      const links = element.querySelectorAll(selector);
+      for (const link of links) {
+        const href = link.href || link.getAttribute('href');
+        if (href && (href.includes('/@') || href.includes('/channel/') || href.includes('/c/'))) {
+          // Ensure full URL
+          if (href.startsWith('/')) {
+            return 'https://www.youtube.com' + href;
+          }
+          return href;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  function findChannelUrlFromData(videoId) {
+    // Search ytInitialData for channel info
+    const data = window.ytInitialData;
+    if (!data) {
+      console.log('[PrimeYT] ytInitialData not available');
+      return null;
+    }
+    
+    const stack = [data];
+    const MAX_NODES = 5000;
+    let traversed = 0;
+    const seen = new WeakSet();
+    
+    while (stack.length && traversed < MAX_NODES) {
+      const node = stack.pop();
+      traversed++;
+      
+      if (!node || typeof node !== 'object') continue;
+      if (seen.has(node)) continue;
+      seen.add(node);
+      
+      // Check for videoRenderer with matching videoId
+      if (node.videoRenderer && node.videoRenderer.videoId === videoId) {
+        const renderer = node.videoRenderer;
+        // Extract channel URL from various paths
+        const channelUrl = extractChannelUrlFromRenderer(renderer);
+        if (channelUrl) {
+          console.log('[PrimeYT] Found channel URL in videoRenderer');
+          return channelUrl;
+        }
+      }
+      
+      // Check for richItemRenderer content
+      if (node.richItemRenderer?.content?.videoRenderer?.videoId === videoId) {
+        const renderer = node.richItemRenderer.content.videoRenderer;
+        const channelUrl = extractChannelUrlFromRenderer(renderer);
+        if (channelUrl) {
+          console.log('[PrimeYT] Found channel URL in richItemRenderer');
+          return channelUrl;
+        }
+      }
+      
+      // Check for playlistVideoRenderer
+      if (node.playlistVideoRenderer && node.playlistVideoRenderer.videoId === videoId) {
+        const renderer = node.playlistVideoRenderer;
+        const channelUrl = extractChannelUrlFromRenderer(renderer);
+        if (channelUrl) {
+          console.log('[PrimeYT] Found channel URL in playlistVideoRenderer');
+          return channelUrl;
+        }
+      }
+      
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          if (child && typeof child === 'object') stack.push(child);
+        }
+      } else {
+        for (const key in node) {
+          if (Object.prototype.hasOwnProperty.call(node, key)) {
+            const child = node[key];
+            if (child && typeof child === 'object') stack.push(child);
+          }
+        }
+      }
+    }
+    
+    console.log('[PrimeYT] Channel URL not found in ytInitialData after', traversed, 'nodes');
+    return null;
+  }
+  
+  function extractChannelUrlFromRenderer(renderer) {
+    // Try multiple paths to get channel URL
+    const paths = [
+      renderer.ownerText?.runs?.[0]?.navigationEndpoint,
+      renderer.longBylineText?.runs?.[0]?.navigationEndpoint,
+      renderer.shortBylineText?.runs?.[0]?.navigationEndpoint,
+      renderer.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer?.navigationEndpoint
+    ];
+    
+    for (const endpoint of paths) {
+      if (endpoint) {
+        const url = endpoint.browseEndpoint?.canonicalBaseUrl ||
+                    endpoint.commandMetadata?.webCommandMetadata?.url;
+        if (url) {
+          return url.startsWith('/') ? 'https://www.youtube.com' + url : url;
+        }
+      }
+    }
+    
+    return null;
+  }
+  
   function goForward() {
     window.history.forward();
     return true;
@@ -2389,9 +2718,16 @@ function isTyping(element) {
           </div>
           <div class="primeyt-help-section">
             <div class="primeyt-help-title">Actions</div>
+            <div class="primeyt-help-row"><kbd>Tab</kbd> <span>Go to channel</span></div>
             <div class="primeyt-help-row"><kbd>w</kbd> <span>Watch Later</span></div>
             <div class="primeyt-help-row"><kbd>Shift</kbd><kbd>S</kbd> <span>Share (copy link)</span></div>
             <div class="primeyt-help-row"><kbd>x</kbd> <span>Remove from playlist</span></div>
+          </div>
+          <div class="primeyt-help-section">
+            <div class="primeyt-help-title">Channel Sort (s + key)</div>
+            <div class="primeyt-help-row"><kbd>s</kbd><kbd>n</kbd> <span>Newest</span></div>
+            <div class="primeyt-help-row"><kbd>s</kbd><kbd>v</kbd> <span>Most viewed</span></div>
+            <div class="primeyt-help-row"><kbd>s</kbd><kbd>o</kbd> <span>Oldest</span></div>
           </div>
           <div class="primeyt-help-section">
             <div class="primeyt-help-title">Leader Commands</div>

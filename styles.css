@@ -285,9 +285,10 @@ ytd-mini-guide-entry-renderer[aria-label="Shorts"] {
 }
 
 /* ========================================
-   HIDE END CARDS / ANNOTATIONS
+   HIDE END CARDS / ANNOTATIONS / END SCREENS
    ======================================== */
 
+/* End screen / end cards - specific selectors only */
 .ytp-ce-element,
 .ytp-ce-covering-overlay,
 .ytp-ce-element-shadow,
@@ -296,14 +297,46 @@ ytd-mini-guide-entry-renderer[aria-label="Shorts"] {
 .ytp-ce-video,
 .ytp-ce-channel,
 .ytp-ce-playlist,
+.ytp-ce-size-853,
+.ytp-ce-size-640,
+.ytp-ce-size-1280,
+.ytp-ce-webview-background,
+.ytp-ce-shadow,
 .ytp-cards-teaser,
 .ytp-cards-button,
 .iv-branding,
 .annotation,
 .ytp-endscreen-content,
 .ytp-endscreen-previous,
-.ytp-endscreen-next {
+.ytp-endscreen-next,
+.ytp-show-tiles,
+.ytp-videowall-still,
+.ytp-videowall-still-image,
+.ytp-suggestion-set,
+.ytp-scroll-min,
+.html5-endscreen,
+.videowall-endscreen {
   display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Watch page specific end card hiding */
+body.primeyt-page-watch .ytp-ce-element,
+body.primeyt-page-watch .ytp-ce-video,
+body.primeyt-page-watch .ytp-ce-channel,
+body.primeyt-page-watch .ytp-ce-playlist,
+body.primeyt-page-watch .ytp-ce-covering-overlay,
+body.primeyt-page-watch .ytp-endscreen-content,
+body.primeyt-page-watch .ytp-videowall-still,
+body.primeyt-page-watch .ytp-suggestion-set,
+body.primeyt-page-watch .html5-endscreen,
+body.primeyt-page-watch .videowall-endscreen {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* ========================================
@@ -561,6 +594,14 @@ body.primeyt-page-watch .html5-video-player .ytp-chrome-top {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.primeyt-video-views {
+  color: var(--accent-purple);
+  font-size: 12px;
+  width: 55px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .primeyt-video-duration {
@@ -1232,16 +1273,171 @@ body:not(.primeyt-page-watch) tp-yt-paper-dialog:has([aria-label*="Premium"]) {
 }
 
 /* ========================================
-   CHANNEL PAGE CLEANUP
+   CHANNEL PAGE - CUSTOM VIDEO LIST
    ======================================== */
 
-body.primeyt-page-channel #channel-header-container {
-  background-color: var(--bg-secondary) !important;
+/* Hide YouTube's channel content - but keep scrollable for lazy loading */
+/* We use opacity: 0 without pointer-events: none initially to allow scrolling to trigger lazy loading */
+/* Once our list is built, we fully hide it */
+ytd-browse[page-subtype="channels"] > *,
+ytd-browse[page-subtype="channels"] #columns,
+ytd-browse[page-subtype="channels"] #primary,
+ytd-browse[page-subtype="channels"] #secondary,
+ytd-browse[page-subtype="channels"] #header,
+ytd-browse[page-subtype="channels"] #tabs-container,
+ytd-browse[page-subtype="channels"] #tabsContent,
+ytd-browse[page-subtype="channels"] ytd-two-column-browse-results-renderer,
+ytd-browse[page-subtype="channels"] ytd-section-list-renderer,
+ytd-browse[page-subtype="channels"] ytd-rich-grid-renderer,
+ytd-browse[page-subtype="channels"] ytd-channel-featured-content-renderer,
+ytd-browse[page-subtype="channels"] #channel-header,
+ytd-browse[page-subtype="channels"] ytd-c4-tabbed-header-renderer,
+ytd-browse[page-subtype="channels"] #page-header,
+body.primeyt-page-channel ytd-browse > *,
+body.primeyt-page-channel ytd-browse #header,
+body.primeyt-page-channel ytd-browse #tabs-container,
+body.primeyt-page-channel ytd-browse #tabsContent,
+body.primeyt-page-channel ytd-browse #primary,
+body.primeyt-page-channel ytd-browse #secondary,
+body.primeyt-page-channel ytd-browse ytd-two-column-browse-results-renderer,
+body.primeyt-page-channel ytd-browse ytd-section-list-renderer,
+body.primeyt-page-channel ytd-browse ytd-rich-grid-renderer,
+body.primeyt-page-channel ytd-c4-tabbed-header-renderer,
+body.primeyt-page-channel #page-header,
+body.primeyt-page-channel #channel-header-container,
+body.primeyt-page-channel yt-page-header-renderer {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-body.primeyt-page-channel ytd-shelf-renderer:has([title*="Featured"]),
-body.primeyt-page-channel ytd-shelf-renderer:has([title*="channels"]) {
+/* Loading indicator for channel pages */
+body.primeyt-page-channel ytd-browse::before {
+  content: 'Loading channel...';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  z-index: 100;
+}
+
+/* Hide loading when list is active */
+body.primeyt-list-active.primeyt-page-channel ytd-browse::before {
   display: none !important;
+}
+
+/* Hide YouTube's channel content when our list is active */
+body.primeyt-list-active.primeyt-page-channel ytd-browse,
+body.primeyt-list-active.primeyt-page-channel ytd-two-column-browse-results-renderer,
+body.primeyt-list-active.primeyt-page-channel ytd-section-list-renderer,
+body.primeyt-list-active.primeyt-page-channel ytd-rich-grid-renderer {
+  display: none !important;
+}
+
+/* ========================================
+   CHANNEL HEADER (Name, Subs, Sort Controls)
+   ======================================== */
+
+#primeyt-channel-header {
+  max-width: 900px;
+  margin: 0 auto 16px auto;
+  padding: 20px 24px 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.primeyt-channel-info {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.primeyt-channel-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.primeyt-channel-subs {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.primeyt-channel-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* Sort Controls */
+.primeyt-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primeyt-sort-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.primeyt-sort-option {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  border: 1px solid transparent;
+}
+
+.primeyt-sort-option:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.primeyt-sort-option.active {
+  background-color: var(--accent-blue);
+  color: var(--bg-primary);
+  font-weight: 600;
+  border-color: var(--accent-blue);
+}
+
+.primeyt-sort-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Channel video list specific - show views column */
+.primeyt-channel-list .primeyt-video-views {
+  color: var(--text-secondary);
+  font-size: 12px;
+  width: 50px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Hide channel column on channel pages (redundant) */
+.primeyt-channel-list .primeyt-video-channel {
+  display: none;
+}
+
+/* Load more indicator */
+.primeyt-load-more {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
 }
 
 /* ========================================
