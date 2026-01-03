@@ -44,7 +44,7 @@ const PrimeYTKeyboard = (function() {
       
       // Navigation (non-watch pages)
       'Enter': (e) => openFocusedVideo(e && e.shiftKey),
-      'Escape': () => handleEscape(),
+      'Escape': () => goToHomeRefresh(),
       
       // Vim-style filter search with /
       '/': () => !isOnWatchPage() ? openFilter() : null,
