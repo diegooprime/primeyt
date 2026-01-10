@@ -84,11 +84,17 @@ const PrimeYTKeyboard = (function() {
   
   function isOnFeedPage() {
     const path = window.location.pathname;
-    return path === '/feed/subscriptions' || 
+    return path === '/feed/subscriptions' ||
            path === '/playlist' ||
            path.startsWith('/feed/') ||
            path === '/' ||
            path === '/results';
+  }
+
+  function isOnPlaylistsFeedPage() {
+    const result = window.location.pathname === '/feed/playlists';
+    if (result) console.log('[PrimeYT] On playlists feed page');
+    return result;
   }
   
   // ==========================================
@@ -378,9 +384,22 @@ function isTyping(element) {
     if (customRows.length > 0) {
       // Filter out hidden videos (from filter search)
       return Array.from(customRows).filter(row => {
-        return !row.classList.contains('primeyt-filter-hidden') && 
+        return !row.classList.contains('primeyt-filter-hidden') &&
                row.style.display !== 'none';
       });
+    }
+
+    // On playlists feed page, select all playlist items
+    if (isOnPlaylistsFeedPage()) {
+      // Try multiple selectors for playlists feed
+      const selectors = [
+        'ytd-rich-item-renderer',
+        'ytd-grid-playlist-renderer',
+        'ytd-playlist-renderer'
+      ];
+      const elements = Array.from(document.querySelectorAll(selectors.join(', ')));
+      console.log('[PrimeYT] Playlists feed - found elements:', elements.length);
+      return elements;
     }
 
     // Fallback to YouTube's elements
@@ -388,6 +407,7 @@ function isTyping(element) {
       'ytd-rich-item-renderer:has(#video-title-link)', // Home/Subscriptions
       'ytd-video-renderer', // Search results
       'ytd-grid-video-renderer', // Channel videos
+      'ytd-grid-playlist-renderer', // Playlist grid items
       'ytd-playlist-video-renderer', // Playlist items
       'ytd-playlist-panel-video-renderer' // Watch page playlist
     ];
@@ -398,6 +418,7 @@ function isTyping(element) {
   
   function navigateVideos(direction) {
     const videos = getVideoElements();
+    console.log('[PrimeYT] navigateVideos called, direction:', direction, 'videos found:', videos.length);
     if (videos.length === 0) return true;
     
     // Clear previous focus
@@ -450,20 +471,31 @@ function isTyping(element) {
   
   function openFocusedVideo(newTab = false) {
     if (!state.focusedVideo) return null;
-    
+
+    // On playlists feed page, always open in new tab
+    if (isOnPlaylistsFeedPage()) {
+      newTab = true;
+    }
+
     let url = null;
-    
+
     // Check if it's our custom row
     if (state.focusedVideo.classList.contains('primeyt-video-row')) {
       url = state.focusedVideo.dataset.url;
     } else {
-      // Fallback: Find the link in the focused video
-      const link = state.focusedVideo.querySelector('a#video-title-link, a#video-title, a.ytd-playlist-panel-video-renderer');
-      if (link) {
-        url = link.href;
+      // Try to find playlist link first (for playlists feed page)
+      const playlistLink = state.focusedVideo.querySelector('a[href*="/playlist?list="]');
+      if (playlistLink) {
+        url = playlistLink.href;
+      } else {
+        // Fallback: Find the video link
+        const link = state.focusedVideo.querySelector('a#video-title-link, a#video-title, a.ytd-playlist-panel-video-renderer');
+        if (link) {
+          url = link.href;
+        }
       }
     }
-    
+
     if (url) {
       if (newTab) {
         // Create a temporary link and simulate Cmd+Click for proper new tab behavior
@@ -471,7 +503,7 @@ function isTyping(element) {
         tempLink.href = url;
         tempLink.style.display = 'none';
         document.body.appendChild(tempLink);
-        
+
         // Dispatch click with metaKey (Cmd on Mac) to open in new tab properly
         const clickEvent = new MouseEvent('click', {
           bubbles: true,
@@ -487,7 +519,7 @@ function isTyping(element) {
       }
       return true;
     }
-    
+
     return null;
   }
   

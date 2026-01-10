@@ -675,12 +675,13 @@ ytd-browse[page-subtype="playlist"] #alerts {
 }
 
 /* Fallback: Hide playlist elements wherever they appear (for Watch Later, etc) */
-ytd-playlist-sidebar-renderer,
-ytd-playlist-header-renderer,
-ytd-browse:has(ytd-playlist-sidebar-renderer) #columns,
-ytd-browse:has(ytd-playlist-sidebar-renderer) #primary,
-ytd-browse:has(ytd-playlist-sidebar-renderer) #secondary,
-ytd-browse:has(ytd-playlist-video-list-renderer) > * {
+/* Only target actual playlist pages (page-subtype="playlist"), NOT the playlists feed listing */
+ytd-browse[page-subtype="playlist"] ytd-playlist-sidebar-renderer,
+ytd-browse[page-subtype="playlist"] ytd-playlist-header-renderer,
+ytd-browse[page-subtype="playlist"]:has(ytd-playlist-sidebar-renderer) #columns,
+ytd-browse[page-subtype="playlist"]:has(ytd-playlist-sidebar-renderer) #primary,
+ytd-browse[page-subtype="playlist"]:has(ytd-playlist-sidebar-renderer) #secondary,
+ytd-browse[page-subtype="playlist"]:has(ytd-playlist-video-list-renderer) > * {
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
@@ -1235,6 +1236,18 @@ body.primeyt-hide-cursor *::after {
 .primeyt-focused {
   outline: 2px solid var(--focus-ring) !important;
   outline-offset: 2px;
+}
+
+/* Focused playlist/video items in grid views */
+ytd-rich-item-renderer.primeyt-focused,
+ytd-grid-playlist-renderer.primeyt-focused,
+ytd-grid-video-renderer.primeyt-focused {
+  outline: 3px solid var(--accent-blue) !important;
+  outline-offset: 4px;
+  background-color: var(--bg-tertiary) !important;
+  border-radius: 8px;
+  z-index: 10;
+  position: relative;
 }
 
 /* ========================================
