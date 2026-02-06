@@ -2352,7 +2352,7 @@ function isTyping(element) {
   // ==========================================
   
   function isOnChannelPage() {
-    return window.PrimeYTChannel?.isChannelPage?.() || false;
+    return window.PrimeYT?.channel?.isChannelPage?.() || false;
   }
   
   function enterSortMode() {
@@ -2381,9 +2381,9 @@ function isTyping(element) {
   }
   
   function applySortOrder(order) {
-    if (!window.PrimeYTChannel?.resortChannelVideos) return;
-    
-    window.PrimeYTChannel.resortChannelVideos(order);
+    if (!window.PrimeYT?.channel?.resortChannelVideos) return;
+
+    window.PrimeYT.channel.resortChannelVideos(order);
     
     const labels = {
       'newest': 'Newest first',

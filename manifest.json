@@ -21,7 +21,7 @@
     },
     {
       "matches": ["https://www.youtube.com/*", "https://youtube.com/*"],
-      "js": ["stats.js", "keyboard.js", "content.js"],
+      "js": ["stats.js", "utils.js", "video-data.js", "cache.js", "feed-list.js", "channel.js", "watch.js", "keyboard.js", "content.js"],
       "run_at": "document_idle"
     }
   ]
